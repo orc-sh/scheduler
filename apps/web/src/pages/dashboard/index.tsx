@@ -79,35 +79,6 @@ const DashboardPage = () => {
             </CardContent>
           </Card>
         </FadeIn>
-
-        <FadeIn delay={0.3} className="max-w-2xl">
-          <Card>
-            <CardHeader>
-              <CardTitle>Getting Started</CardTitle>
-              <CardDescription>Your authentication is now set up and working</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2 text-sm">
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 mt-0.5">✓</span>
-                  <span>OAuth authentication with Google/GitHub</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 mt-0.5">✓</span>
-                  <span>JWT token-based API authentication</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 mt-0.5">✓</span>
-                  <span>Automatic token refresh on expiry</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-green-500 mt-0.5">✓</span>
-                  <span>Protected routes and API endpoints</span>
-                </li>
-              </ul>
-            </CardContent>
-          </Card>
-        </FadeIn>
       </div>
     </div>
   );
