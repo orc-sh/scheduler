@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { ComponentPropsWithoutRef, forwardRef } from 'react';
+import { forwardRef, type ComponentPropsWithoutRef } from 'react';
 
 type FadeInProps = ComponentPropsWithoutRef<typeof motion.div> & {
   delay?: number;

@@ -1,46 +1,41 @@
 import axios, { type AxiosInstance, type AxiosError } from 'axios';
+import { useAuthStore } from '@/stores/auth-store';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
-// Token storage keys
-const ACCESS_TOKEN_KEY = 'access_token';
-const REFRESH_TOKEN_KEY = 'refresh_token';
-
 /**
- * Store authentication tokens in localStorage
- */
-export const setTokens = (accessToken: string, refreshToken: string) => {
-  localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
-  localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-};
-
-/**
- * Get access token from localStorage
+ * Get access token from Zustand store
  */
 export const getAccessToken = (): string | null => {
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
+  return useAuthStore.getState().accessToken;
 };
 
 /**
- * Get refresh token from localStorage
+ * Get refresh token from Zustand store
  */
 export const getRefreshToken = (): string | null => {
-  return localStorage.getItem(REFRESH_TOKEN_KEY);
+  return useAuthStore.getState().refreshToken;
 };
 
 /**
- * Clear all tokens from localStorage
+ * Store authentication tokens in Zustand store
+ */
+export const setTokens = (accessToken: string, refreshToken: string) => {
+  useAuthStore.getState().setTokens(accessToken, refreshToken);
+};
+
+/**
+ * Clear all tokens from Zustand store
  */
 export const clearTokens = () => {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  useAuthStore.getState().clearAuth();
 };
 
 /**
  * Check if user is authenticated
  */
 export const isAuthenticated = (): boolean => {
-  return !!getAccessToken();
+  return useAuthStore.getState().isAuthenticated;
 };
 
 // Create axios instance

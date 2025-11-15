@@ -1,14 +1,19 @@
-import { useAuth } from '@/contexts/AuthContext';
+import { useCurrentUser, useLogout } from '@/hooks/use-auth';
+import { useAuthStore } from '@/stores/auth-store';
 import { FadeIn } from '@/components/motion/fade-in';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { LogOut, User } from 'lucide-react';
 
 const DashboardPage = () => {
-  const { user, logout } = useAuth();
+  const user = useAuthStore((state) => state.user);
+  const { mutate: logout } = useLogout();
 
-  const handleLogout = async () => {
-    await logout();
+  // Fetch current user data
+  useCurrentUser();
+
+  const handleLogout = () => {
+    logout();
   };
 
   return (

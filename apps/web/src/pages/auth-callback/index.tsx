@@ -1,18 +1,27 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { useOAuthCallback } from '@/hooks/use-auth';
+import { useAuthStore } from '@/stores/auth-store';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 
 const AuthCallbackPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { handleOAuthCallback } = useAuth();
+  const { mutate: handleOAuthCallback } = useOAuthCallback();
   const [error, setError] = useState<string | null>(null);
   const hasProcessedCallback = useRef(false);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  // Navigate to dashboard once authentication is confirmed
+  useEffect(() => {
+    if (isAuthenticated && hasProcessedCallback.current && !error) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isAuthenticated, navigate, error]);
 
   useEffect(() => {
-    const processCallback = async () => {
+    const processCallback = () => {
       // Prevent duplicate processing
       if (hasProcessedCallback.current) {
         return;
@@ -38,17 +47,18 @@ const AuthCallbackPage = () => {
       // Mark as processing to prevent duplicate calls
       hasProcessedCallback.current = true;
 
-      try {
-        // Exchange code for tokens
-        await handleOAuthCallback(code);
-
-        // Redirect to dashboard/home on success
-        navigate('/dashboard');
-      } catch (err) {
-        console.error('Error processing OAuth callback:', err);
-        setError('Failed to complete authentication. Please try again.');
-        setTimeout(() => navigate('/login'), 3000);
-      }
+      // Exchange code for tokens
+      handleOAuthCallback(code, {
+        onSuccess: () => {
+          // Navigation will happen in the other useEffect when isAuthenticated becomes true
+          console.log('OAuth callback successful, authentication state updating...');
+        },
+        onError: (err) => {
+          console.error('Error processing OAuth callback:', err);
+          setError('Failed to complete authentication. Please try again.');
+          setTimeout(() => navigate('/login'), 3000);
+        },
+      });
     };
 
     processCallback();
