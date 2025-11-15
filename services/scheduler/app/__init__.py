@@ -1,4 +1,3 @@
-from .main import scheduler
-from .main import app
+from .main import app, scheduler
 
 __all__ = ["scheduler", "app"]

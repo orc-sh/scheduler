@@ -1,22 +1,26 @@
 from sqlalchemy.orm import Session
+
+from app.models.result import TaskResult
+from app.models.task import Task
 from app.models.webhook import Webhook
 from app.schemas.request.task_request import TaskRequest
-from app.models.task import Task
-from app.models.result import TaskResult
 from lib.exception.not_found import NotFoundException
+
 
 def find_all(db: Session):
     """List all tasks."""
     tasks = db.query(Task).all()
     return [task for task in tasks]
 
+
 def find(db: Session, task_id: str):
     """Retrieve a task by ID."""
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise NotFoundException
-    
+
     return task
+
 
 def create(db: Session, data: TaskRequest):
     """Create and schedule a new task."""
@@ -32,12 +36,13 @@ def create(db: Session, data: TaskRequest):
     db.commit()
     return task
 
+
 def update(db: Session, task_id: str, data: TaskRequest):
     """Edit an existing task and update its schedule."""
     task = db.query(Task).filter(Task.id == task_id).first()
     if not task:
         raise NotFoundException
-    
+
     task_data = data.model_dump()
     webhook_data = task_data.pop("webhook", None)
 
@@ -55,6 +60,7 @@ def update(db: Session, task_id: str, data: TaskRequest):
     db.commit()
     return task
 
+
 def destroy(db: Session, task_id: str):
     """Delete a task and remove its schedule."""
     task = db.query(Task).filter(Task.id == task_id).first()
@@ -65,11 +71,12 @@ def destroy(db: Session, task_id: str):
     db.commit()
     return {"status": "success", "message": "Task deleted"}
 
+
 def results(db: Session, task_id: str):
     """Retrieve all execution results for a given task."""
     task = db.query(Task).filter(Task.task_id == task_id).first()
     if not task:
         raise NotFoundException
-    
+
     results = db.query(TaskResult).filter(TaskResult.task_id == task_id).all()
     return [result.to_dict() for result in results]

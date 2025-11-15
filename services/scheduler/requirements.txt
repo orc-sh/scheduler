@@ -16,3 +16,10 @@ celery[beat]
 flower
 sqlalchemy-celery-beat
 mysql-connector
+supabase
+pyjwt
+
+# Development dependencies
+black
+isort
+flake8

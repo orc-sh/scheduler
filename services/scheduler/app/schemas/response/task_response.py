@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Dict, Optional
-from pydantic import BaseModel, Field, field_validator
+
+from pydantic import BaseModel, field_validator
+
 
 class WebhookResponse(BaseModel):
     url: str
@@ -11,13 +13,14 @@ class WebhookResponse(BaseModel):
     class Config:
         validate_assignment = True
 
-    @field_validator('headers')
+    @field_validator("headers")
     def set_headers(cls, headers):
         return headers or {}
-    
-    @field_validator('body')
+
+    @field_validator("body")
     def set_body(cls, body):
         return body or {}
+
 
 class TaskResponse(BaseModel):
     id: int

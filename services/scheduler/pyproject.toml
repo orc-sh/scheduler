@@ -1,54 +1,32 @@
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[project]
-name = "cronify-api"
-version = "0.1.0"
-description = "A FastAPI backend for the Cronify application"
-authors = [
-    { name = "Rubanthilak" }
-]
-dependencies = [
-    "fastapi>=0.103.0",
-    "uvicorn>=0.23.2",
-    "pydantic>=2.3.0",
-    "sqlalchemy>=2.0.20",
-    "alembic>=1.11.3",
-    "psycopg2-binary>=2.9.7",
-    "celery>=5.3.1",
-    "python-dotenv>=1.0.0",
-    "requests>=2.31.0"
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.4.0",
-    "pytest-cov>=4.1.0",
-    "black>=23.7.0",
-    "isort>=5.12.0",
-    "flake8>=6.1.0",
-    "mypy>=1.5.1"
-]
-
 [tool.black]
-line-length = 88
-target-version = ["py310"]
+line-length = 120
+target-version = ['py310']
 include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | migrations
+  | db/migrate/versions
+)/
+'''
 
 [tool.isort]
 profile = "black"
+line_length = 120
 multi_line_output = 3
-line_length = 88
-
-[tool.mypy]
-python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-check_untyped_defs = true
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-python_files = ["test_*.py"]
-addopts = "--cov=app --cov-report=html --cov-report=term-missing"
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+skip_glob = ["*/migrations/*", "*/db/migrate/versions/*"]

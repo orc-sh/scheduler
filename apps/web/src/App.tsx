@@ -1,26 +1,37 @@
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from '@/contexts/AuthContext';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import LoginPage from '@/pages/LoginPage';
+import AuthCallbackPage from '@/pages/AuthCallbackPage';
+import DashboardPage from '@/pages/DashboardPage';
 
 function App() {
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="container mx-auto">
-        <h1 className="text-4xl font-bold mb-8">Welcome to shadcn/ui</h1>
-        <Card className="max-w-md">
-          <CardHeader>
-            <CardTitle>Setup Complete!</CardTitle>
-            <CardDescription>shadcn/ui is now installed and ready to use.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-2">
-              <Button>Primary Button</Button>
-              <Button variant="outline">Outline Button</Button>
-              <Button variant="secondary">Secondary</Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
+    <Router>
+      <AuthProvider>
+        <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
+
+          {/* Protected routes */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Redirect root to dashboard */}
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+          {/* Catch all - redirect to dashboard */}
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </AuthProvider>
+    </Router>
   );
 }
 

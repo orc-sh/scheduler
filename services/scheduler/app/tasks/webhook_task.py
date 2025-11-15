@@ -1,6 +1,7 @@
+from celery import shared_task
+
 from app.services.webhook_service import trigger_webhook
 from db.client import SessionLocal
-from celery import shared_task
 
 
 @shared_task(rate_limit="10/m")

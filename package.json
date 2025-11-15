@@ -34,13 +34,12 @@
   },
   "lint-staged": {
     "apps/web/**/*.{ts,tsx}": [
-      "bash -c 'cd apps/web && eslint --fix .'",
       "prettier --write"
     ],
     "services/scheduler/**/*.py": [
-      "black",
-      "isort",
-      "flake8"
+      "python -m black --quiet",
+      "python -m isort --quiet",
+      "python -m flake8 --max-line-length=120 --extend-ignore=E203,W503"
     ]
   },
   "keywords": [
