@@ -15,21 +15,44 @@
     "lint": "pnpm lint:web && pnpm lint:api",
     "lint:web": "cd apps/web && pnpm lint",
     "lint:api": "cd services/scheduler && black . && isort . && flake8",
+    "format": "pnpm format:web",
+    "format:web": "cd apps/web && pnpm format",
+    "format:check": "pnpm format:check:web",
+    "format:check:web": "cd apps/web && pnpm format:check",
     "clean": "pnpm clean:web && pnpm clean:api",
     "clean:web": "cd apps/web && rm -rf node_modules dist",
     "clean:api": "cd services/scheduler && find . -type d -name __pycache__ -delete",
-    "setup": "pnpm install && cd services/scheduler && python -m pip install -e .[dev]"
+    "setup": "pnpm install && cd services/scheduler && python -m pip install -e .[dev]",
+    "prepare": "husky install"
   },
   "devDependencies": {
     "concurrently": "^9.2.0",
+    "eslint-config-prettier": "^10.1.8",
     "husky": "^8.0.3",
-    "lint-staged": "^15.0.0"
+    "lint-staged": "^15.0.0",
+    "prettier": "^3.6.2"
   },
   "lint-staged": {
-    "apps/web/**/*.{ts,tsx}": ["eslint --fix", "prettier --write"],
-    "services/scheduler/**/*.py": ["black", "isort", "flake8"]
+    "apps/web/**/*.{ts,tsx}": [
+      "bash -c 'cd apps/web && eslint --fix .'",
+      "prettier --write"
+    ],
+    "services/scheduler/**/*.py": [
+      "black",
+      "isort",
+      "flake8"
+    ]
   },
-  "keywords": ["fullstack", "typescript", "react", "fastapi", "python", "vite", "pnpm", "monorepo"],
+  "keywords": [
+    "fullstack",
+    "typescript",
+    "react",
+    "fastapi",
+    "python",
+    "vite",
+    "pnpm",
+    "monorepo"
+  ],
   "author": "Ruban Thilak",
   "license": "ISC"
 }
