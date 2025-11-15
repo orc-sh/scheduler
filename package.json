@@ -4,12 +4,30 @@
   "description": "Lightweight webhook scheduling service",
   "main": "index.js",
   "scripts": {
-    "dev:ui": "cd ui && pnpm dev",
-    "dev:api": "cd api && python -m uvicorn app.main:app --reload",
-    "dev": "concurrently \"pnpm dev:ui\" \"pnpm dev:api\""
+    "dev": "concurrently \"pnpm dev:web\" \"pnpm dev:api\" --names \"WEB,API\" --prefix-colors \"cyan,yellow\"",
+    "dev:web": "cd apps/web && pnpm dev",
+    "dev:api": "cd services/scheduler && python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "build": "pnpm build:web",
+    "build:web": "cd apps/web && pnpm build",
+    "test": "pnpm test:web && pnpm test:api",
+    "test:web": "cd apps/web && pnpm test",
+    "test:api": "cd services/scheduler && python -m pytest",
+    "lint": "pnpm lint:web && pnpm lint:api",
+    "lint:web": "cd apps/web && pnpm lint",
+    "lint:api": "cd services/scheduler && black . && isort . && flake8",
+    "clean": "pnpm clean:web && pnpm clean:api",
+    "clean:web": "cd apps/web && rm -rf node_modules dist",
+    "clean:api": "cd services/scheduler && find . -type d -name __pycache__ -delete",
+    "setup": "pnpm install && cd services/scheduler && python -m pip install -e .[dev]"
   },
   "devDependencies": {
-    "concurrently": "^9.2.0"
+    "concurrently": "^9.2.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.0.0"
+  },
+  "lint-staged": {
+    "apps/web/**/*.{ts,tsx}": ["eslint --fix", "prettier --write"],
+    "services/scheduler/**/*.py": ["black", "isort", "flake8"]
   },
   "keywords": ["fullstack", "typescript", "react", "fastapi", "python", "vite", "pnpm", "monorepo"],
   "author": "Ruban Thilak",
