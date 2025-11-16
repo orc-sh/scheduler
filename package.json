@@ -15,7 +15,7 @@
     "test:api": "cd services/scheduler && python -m pytest",
     "lint": "pnpm lint:web && pnpm lint:api",
     "lint:web": "cd apps/web && pnpm lint",
-    "lint:api": "cd services/scheduler && black . && isort . && flake8",
+    "lint:api": "cd services/scheduler && python -m black . && python -m isort . && python -m flake8",
     "format": "pnpm format:web",
     "format:web": "cd apps/web && pnpm format",
     "format:check": "pnpm format:check:web",

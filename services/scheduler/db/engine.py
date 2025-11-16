@@ -1,6 +1,8 @@
 import os
-from sqlalchemy import create_engine, MetaData
+
 from databases import Database
+from sqlalchemy import MetaData, create_engine
+
 from config.environment import init
 
 # Initialize environment variables

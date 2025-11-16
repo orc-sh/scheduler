@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.controllers import health_controller
+from app.controllers import health_controller, project_controller
 from config.environment import get_frontend_url, init
 
 # Initialize environment variables FIRST before importing modules that need them
@@ -25,6 +25,7 @@ app.add_middleware(
 
 # Include each router with a specific prefix and tags for better organization
 app.include_router(health_controller.router, prefix="", tags=["Health"])
+app.include_router(project_controller.router, prefix="/projects", tags=["Projects"])
 
 # Note: Authentication routes have been moved to the separate auth service
 # running on port 8001. The scheduler service still uses the auth middleware

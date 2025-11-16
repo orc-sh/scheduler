@@ -4,6 +4,9 @@ flake8
 requests
 pytest
 pytest-cov
+pytest-asyncio
+pytest-mock
+httpx
+faker
 isort
 autoflake
-isort

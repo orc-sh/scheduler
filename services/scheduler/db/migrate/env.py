@@ -1,16 +1,15 @@
-import sys
+# flake8: noqa
 import os
+import sys
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config, pool
-from sqlalchemy import MetaData
-
 from alembic import context
+from sqlalchemy import MetaData, engine_from_config, pool
 
 from app.models.base import Base
 
 # Add the `app.models` directory to sys.path for importing models
-sys.path.append(os.path.join(os.path.dirname(__file__), '../app'))
+sys.path.append(os.path.join(os.path.dirname(__file__), "../app"))
 
 # Import all models here (importing dynamically from the models folder)
 from app.models import *
@@ -36,12 +35,13 @@ if config.config_file_name is not None:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
 
+
 # Other Alembic setup
 def run_migrations_online():
     # Connect to the database
     connectable = engine_from_config(
         config.get_section(config.config_ini_section),
-        prefix='sqlalchemy.',
+        prefix="sqlalchemy.",
         poolclass=pool.NullPool,
     )
 
@@ -53,6 +53,7 @@ def run_migrations_online():
 
         with context.begin_transaction():
             context.run_migrations()
+
 
 if context.is_offline_mode():
     # Offline migration logic

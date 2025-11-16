@@ -1,5 +1,4 @@
 from sqlalchemy import JSON, TIMESTAMP, BigInteger, Boolean, Column, ForeignKey, Index, Integer, String, Text
-from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.sql import func
 
 from .base import Base
@@ -15,10 +14,10 @@ class WebhookResult(Base):
     request_url = Column(String(1024), nullable=False)
     request_method = Column(String(10), nullable=False)
     request_headers = Column(JSON, nullable=True)
-    request_body = Column(LONGTEXT, nullable=True)
+    request_body = Column(Text, nullable=True)  # Changed from LONGTEXT for SQLite compatibility
     response_status = Column(Integer, nullable=True)
     response_headers = Column(JSON, nullable=True)
-    response_body = Column(LONGTEXT, nullable=True)
+    response_body = Column(Text, nullable=True)  # Changed from LONGTEXT for SQLite compatibility
     error_message = Column(Text, nullable=True)
     duration_ms = Column(Integer, nullable=True)
     is_success = Column(Boolean, nullable=False, server_default="0")

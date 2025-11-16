@@ -1,34 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel
 
 from app.middleware.auth_middleware import get_current_user
 from app.models.user import User
+from app.schemas import RefreshTokenRequest, TokenResponse, UserResponse
 from app.services.auth_service import get_auth_service
 
 router = APIRouter()
-
-
-class TokenResponse(BaseModel):
-    """Authentication token response"""
-
-    access_token: str
-    refresh_token: str
-    expires_at: int
-    user: dict
-
-
-class RefreshTokenRequest(BaseModel):
-    """Refresh token request"""
-
-    refresh_token: str
-
-
-class UserResponse(BaseModel):
-    """User information response"""
-
-    id: str
-    email: str
-    user_metadata: dict
 
 
 @router.post("/refresh", response_model=TokenResponse)

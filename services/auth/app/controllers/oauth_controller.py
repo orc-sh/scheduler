@@ -1,40 +1,11 @@
 from typing import List
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 
+from app.schemas import OAuthCallbackRequest, OAuthProvider, OAuthURLResponse, TokenResponse
 from app.services.auth_service import get_auth_service
 
 router = APIRouter()
-
-
-class OAuthProvider(BaseModel):
-    """OAuth provider information"""
-
-    name: str
-    display_name: str
-
-
-class OAuthURLResponse(BaseModel):
-    """OAuth authorization URL response"""
-
-    url: str
-    provider: str
-
-
-class OAuthCallbackRequest(BaseModel):
-    """OAuth callback request with authorization code"""
-
-    code: str
-
-
-class TokenResponse(BaseModel):
-    """Authentication token response"""
-
-    access_token: str
-    refresh_token: str
-    expires_at: int
-    user: dict
 
 
 @router.get("/providers", response_model=List[OAuthProvider])
