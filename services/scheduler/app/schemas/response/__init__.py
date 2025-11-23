@@ -4,4 +4,8 @@
 from .pagination_schemas import PaginatedResponse, PaginationMetadata
 from .project_schemas import ProjectResponse
 
-__all__ = ["PaginatedResponse", "PaginationMetadata", "ProjectResponse"]
+__all__ = [
+    "PaginatedResponse",
+    "PaginationMetadata",
+    "ProjectResponse",
+]
