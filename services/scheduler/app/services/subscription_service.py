@@ -84,31 +84,43 @@ class SubscriptionService:
                     "last_name": customer_last_name or "",
                 }
             )
-            customer = customer_result.customer
+            customer = customer_result.customer  # type: ignore[attr-defined]
+            if not customer:
+                raise ValueError("Failed to create customer in Chargebee")
 
             # Create subscription in Chargebee
             subscription_result = chargebee.Subscription.create(
                 {
                     "plan_id": plan_id,
-                    "customer": {"id": customer.id},
+                    "customer": {"id": customer.id},  # type: ignore[attr-defined]
                 }
             )
-            cb_subscription = subscription_result.subscription
+            cb_subscription = subscription_result.subscription  # type: ignore[attr-defined]
+            if not cb_subscription:
+                raise ValueError("Failed to create subscription in Chargebee")
 
             # Create subscription record in database
             subscription = Subscription(
-                id=str(cb_subscription.id),  # Use Chargebee subscription ID as our ID
+                id=str(cb_subscription.id),  # type: ignore[attr-defined]
                 project_id=project_id,
-                chargebee_subscription_id=cb_subscription.id,
-                chargebee_customer_id=customer.id,
+                chargebee_subscription_id=cb_subscription.id,  # type: ignore[attr-defined]
+                chargebee_customer_id=customer.id,  # type: ignore[attr-defined]
                 plan_id=plan_id,
-                status=cb_subscription.status,
-                current_term_start=self._parse_datetime(cb_subscription.current_term_start),
-                current_term_end=self._parse_datetime(cb_subscription.current_term_end),
-                trial_end=(
-                    self._parse_datetime(cb_subscription.trial_end) if hasattr(cb_subscription, "trial_end") else None
+                status=cb_subscription.status,  # type: ignore[attr-defined]
+                current_term_start=self._parse_datetime(  # type: ignore[attr-defined]
+                    getattr(cb_subscription, "current_term_start", None)
                 ),
-                metadata=json.dumps(cb_subscription.__dict__) if hasattr(cb_subscription, "__dict__") else None,
+                current_term_end=self._parse_datetime(  # type: ignore[attr-defined]
+                    getattr(cb_subscription, "current_term_end", None)
+                ),
+                trial_end=self._parse_datetime(  # type: ignore[attr-defined]
+                    getattr(cb_subscription, "trial_end", None)
+                ),
+                metadata=(
+                    json.dumps(vars(cb_subscription))  # type: ignore[attr-defined]
+                    if hasattr(cb_subscription, "__dict__")
+                    else None
+                ),
             )
 
             self.db.add(subscription)
@@ -195,18 +207,24 @@ class SubscriptionService:
 
             # Update subscription in Chargebee
             result = chargebee.Subscription.update(subscription.chargebee_subscription_id, update_params)
-            cb_subscription = result.subscription
+            cb_subscription = result.subscription  # type: ignore[attr-defined]
+            if not cb_subscription:
+                raise ValueError("Failed to update subscription in Chargebee")
 
             # Update local subscription record
-            subscription.plan_id = cb_subscription.plan_id
-            subscription.status = cb_subscription.status
-            subscription.current_term_start = self._parse_datetime(cb_subscription.current_term_start)
-            subscription.current_term_end = self._parse_datetime(cb_subscription.current_term_end)
-            subscription.trial_end = (
-                self._parse_datetime(cb_subscription.trial_end) if hasattr(cb_subscription, "trial_end") else None
+            subscription.plan_id = cb_subscription.plan_id  # type: ignore[attr-defined]
+            subscription.status = cb_subscription.status  # type: ignore[attr-defined]
+            subscription.current_term_start = self._parse_datetime(  # type: ignore[attr-defined,assignment]
+                getattr(cb_subscription, "current_term_start", None)
             )
-            subscription.metadata = (
-                json.dumps(cb_subscription.__dict__) if hasattr(cb_subscription, "__dict__") else None
+            subscription.current_term_end = self._parse_datetime(  # type: ignore[attr-defined,assignment]
+                getattr(cb_subscription, "current_term_end", None)
+            )
+            subscription.trial_end = self._parse_datetime(  # type: ignore[attr-defined,assignment]
+                getattr(cb_subscription, "trial_end", None)
+            )
+            subscription.metadata = (  # type: ignore[attr-defined,assignment]
+                json.dumps(vars(cb_subscription)) if hasattr(cb_subscription, "__dict__") else None
             )
 
             self.db.commit()
@@ -248,14 +266,16 @@ class SubscriptionService:
                 cancel_params["cancel_reason"] = cancel_reason
 
             result = chargebee.Subscription.cancel(subscription.chargebee_subscription_id, cancel_params)
-            cb_subscription = result.subscription
+            cb_subscription = result.subscription  # type: ignore[attr-defined]
+            if not cb_subscription:
+                raise ValueError("Failed to cancel subscription in Chargebee")
 
             # Update local subscription record
-            subscription.status = cb_subscription.status
-            subscription.cancelled_at = datetime.utcnow()
-            subscription.cancel_reason = cancel_reason
-            subscription.metadata = (
-                json.dumps(cb_subscription.__dict__) if hasattr(cb_subscription, "__dict__") else None
+            subscription.status = cb_subscription.status  # type: ignore[attr-defined]
+            subscription.cancelled_at = datetime.utcnow()  # type: ignore[assignment]
+            subscription.cancel_reason = cancel_reason  # type: ignore[assignment]
+            subscription.metadata = (  # type: ignore[attr-defined,assignment]
+                json.dumps(vars(cb_subscription)) if hasattr(cb_subscription, "__dict__") else None
             )
 
             self.db.commit()
@@ -309,7 +329,9 @@ class SubscriptionService:
 
             # Fetch subscription from Chargebee
             result = chargebee.Subscription.retrieve(chargebee_subscription_id)
-            cb_subscription = result.subscription
+            cb_subscription = result.subscription  # type: ignore[attr-defined]
+            if not cb_subscription:
+                raise ValueError("Subscription not found in Chargebee")
 
             # Find or create local subscription record
             subscription = (
@@ -320,33 +342,43 @@ class SubscriptionService:
 
             if subscription:
                 # Update existing record
-                subscription.status = cb_subscription.status
-                subscription.plan_id = cb_subscription.plan_id
-                subscription.current_term_start = self._parse_datetime(cb_subscription.current_term_start)
-                subscription.current_term_end = self._parse_datetime(cb_subscription.current_term_end)
-                subscription.trial_end = (
-                    self._parse_datetime(cb_subscription.trial_end) if hasattr(cb_subscription, "trial_end") else None
+                subscription.status = cb_subscription.status  # type: ignore[attr-defined]
+                subscription.plan_id = cb_subscription.plan_id  # type: ignore[attr-defined]
+                subscription.current_term_start = self._parse_datetime(  # type: ignore[attr-defined,assignment]
+                    getattr(cb_subscription, "current_term_start", None)
                 )
-                subscription.metadata = (
-                    json.dumps(cb_subscription.__dict__) if hasattr(cb_subscription, "__dict__") else None
+                subscription.current_term_end = self._parse_datetime(  # type: ignore[attr-defined,assignment]
+                    getattr(cb_subscription, "current_term_end", None)
+                )
+                subscription.trial_end = self._parse_datetime(  # type: ignore[attr-defined,assignment]
+                    getattr(cb_subscription, "trial_end", None)
+                )
+                subscription.metadata = (  # type: ignore[attr-defined,assignment]
+                    json.dumps(vars(cb_subscription)) if hasattr(cb_subscription, "__dict__") else None
                 )
             else:
                 # Create new record (shouldn't happen often, but handle it)
                 subscription = Subscription(
-                    id=str(cb_subscription.id),
+                    id=str(cb_subscription.id),  # type: ignore[attr-defined]
                     project_id="",  # Will need to be set manually
-                    chargebee_subscription_id=cb_subscription.id,
-                    chargebee_customer_id=cb_subscription.customer_id,
-                    plan_id=cb_subscription.plan_id,
-                    status=cb_subscription.status,
-                    current_term_start=self._parse_datetime(cb_subscription.current_term_start),
-                    current_term_end=self._parse_datetime(cb_subscription.current_term_end),
-                    trial_end=(
-                        self._parse_datetime(cb_subscription.trial_end)
-                        if hasattr(cb_subscription, "trial_end")
+                    chargebee_subscription_id=cb_subscription.id,  # type: ignore[attr-defined]
+                    chargebee_customer_id=getattr(cb_subscription, "customer_id", ""),  # type: ignore[attr-defined]
+                    plan_id=cb_subscription.plan_id,  # type: ignore[attr-defined]
+                    status=cb_subscription.status,  # type: ignore[attr-defined]
+                    current_term_start=self._parse_datetime(  # type: ignore[attr-defined]
+                        getattr(cb_subscription, "current_term_start", None)
+                    ),
+                    current_term_end=self._parse_datetime(  # type: ignore[attr-defined]
+                        getattr(cb_subscription, "current_term_end", None)
+                    ),
+                    trial_end=self._parse_datetime(  # type: ignore[attr-defined]
+                        getattr(cb_subscription, "trial_end", None)
+                    ),
+                    metadata=(
+                        json.dumps(vars(cb_subscription))  # type: ignore[attr-defined]
+                        if hasattr(cb_subscription, "__dict__")
                         else None
                     ),
-                    metadata=json.dumps(cb_subscription.__dict__) if hasattr(cb_subscription, "__dict__") else None,
                 )
                 self.db.add(subscription)
 
