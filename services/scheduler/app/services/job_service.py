@@ -10,6 +10,7 @@ from croniter import croniter
 from sqlalchemy.orm import Session
 
 from app.models.jobs import Job
+from app.utils.cron_validator import validate_cron_interval
 
 
 class JobService:
@@ -32,6 +33,7 @@ class JobService:
         job_type: int,
         timezone: str = "UTC",
         enabled: bool = True,
+        user=None,  # Add user parameter
     ) -> Job:
         """
         Create a new job for a project.
@@ -43,13 +45,18 @@ class JobService:
             job_type: Type identifier for the job
             timezone: Timezone for the schedule (default: UTC)
             enabled: Whether the job is enabled (default: True)
+            user: User instance for tier validation (optional)
 
         Returns:
             Created Job instance
 
         Raises:
-            ValueError: If the cron schedule is invalid
+            ValueError: If the cron schedule is invalid or doesn't meet tier requirements
         """
+        # Validate cron expression and tier requirements
+        if user:
+            validate_cron_interval(schedule, user)
+
         # Validate cron expression and calculate next run time
         try:
             next_run_at = self._calculate_next_run(schedule, timezone)
@@ -105,6 +112,7 @@ class JobService:
         job_type: Optional[int] = None,
         timezone: Optional[str] = None,
         enabled: Optional[bool] = None,
+        user=None,  # Add user parameter
     ) -> Optional[Job]:
         """
         Update a job's properties.
@@ -116,12 +124,13 @@ class JobService:
             job_type: New job type (optional)
             timezone: New timezone (optional)
             enabled: New enabled status (optional)
+            user: User instance for tier validation (optional)
 
         Returns:
             Updated Job instance if found, None otherwise
 
         Raises:
-            ValueError: If the new cron schedule is invalid
+            ValueError: If the new cron schedule is invalid or doesn't meet tier requirements
         """
         job = self.get_job(job_id)
         if not job:
@@ -137,8 +146,12 @@ class JobService:
         if enabled is not None:
             job.enabled = enabled  # type: ignore[assignment]
 
-        # If schedule changes, recalculate next_run_at
+        # If schedule changes, validate and recalculate next_run_at
         if schedule is not None:
+            # Validate cron expression and tier requirements
+            if user:
+                validate_cron_interval(schedule, user)
+
             try:
                 job.schedule = schedule  # type: ignore[assignment]
                 job.next_run_at = self._calculate_next_run(schedule, job.timezone)  # type: ignore[assignment]

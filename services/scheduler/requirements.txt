@@ -21,3 +21,4 @@ httpx
 croniter
 pytz
 redis
+chargebee

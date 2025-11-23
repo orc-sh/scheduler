@@ -3,9 +3,11 @@
 
 from .pagination_schemas import PaginatedResponse, PaginationMetadata
 from .project_schemas import ProjectResponse
+from .subscription_schemas import SubscriptionResponse
 
 __all__ = [
     "PaginatedResponse",
     "PaginationMetadata",
     "ProjectResponse",
+    "SubscriptionResponse",
 ]

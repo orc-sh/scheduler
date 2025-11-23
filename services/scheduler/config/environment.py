@@ -40,3 +40,19 @@ def get_frontend_url() -> str:
 def get_auth_service_url() -> str:
     """Get authentication service URL"""
     return os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
+
+
+def get_chargebee_api_key() -> str:
+    """Get Chargebee API key from environment"""
+    key = os.getenv("CHARGEBEE_API_KEY")
+    if not key:
+        raise ValueError("CHARGEBEE_API_KEY environment variable is not set")
+    return key
+
+
+def get_chargebee_site() -> str:
+    """Get Chargebee site name from environment"""
+    site = os.getenv("CHARGEBEE_SITE")
+    if not site:
+        raise ValueError("CHARGEBEE_SITE environment variable is not set")
+    return site

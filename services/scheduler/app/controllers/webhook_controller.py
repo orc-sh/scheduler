@@ -44,9 +44,9 @@ async def create_cron_webhook(
         HTTPException: 401 if not authenticated, 400 if validation fails
     """
     try:
-        # Step 1: Get or create project using user's name
+        # Step 1: Get or create project using user's name (automatically creates subscription)
         project_service = get_project_service(db)
-        project = project_service.get_or_create_project_by_name(user_id=user.id, project_name=user.name)
+        project = project_service.get_or_create_project_by_name(user_id=user.id, project_name=user.name, user=user)
 
         # Step 2: Create job for the project
         job_service = get_job_service(db)
@@ -57,6 +57,7 @@ async def create_cron_webhook(
             job_type=request.job.type,
             timezone=request.job.timezone,
             enabled=request.job.enabled,
+            user=user,  # Pass user for tier validation
         )
 
         # Step 3: Create webhook for the job
@@ -292,6 +293,7 @@ async def update_webhook(
                 schedule=request.job.schedule,
                 timezone=request.job.timezone,
                 enabled=request.job.enabled,
+                user=user,  # Pass user for tier validation
             )
             if updated_job:
                 job = updated_job
