@@ -177,14 +177,6 @@ const DashboardPage = () => {
                 <p className="mt-1 text-sm text-muted-foreground">Manage your webhook schedules</p>
               </div>
               <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => navigate('/cron-builder?return=/dashboard')}
-                  className="gap-2"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  Cron Builder
-                </Button>
                 <Button onClick={() => navigate('/add-new')} className="gap-2">
                   <Plus className="h-4 w-4" />
                   Create Schedule
@@ -225,7 +217,7 @@ const DashboardPage = () => {
                 {webhooks.map((webhook) => (
                   <Card
                     key={webhook.id}
-                    className="group rounded-xl border-border/50 bg-card transition-all duration-200 hover:border-border hover:shadow-sm cursor-pointer"
+                    className="group rounded-xl border-border/50 bg-card transition-all shadow-none duration-200 hover:border-border hover:shadow-sm cursor-pointer"
                     onClick={() => navigate(`/webhooks/${webhook.id}`)}
                   >
                     <CardContent className="flex items-center justify-between gap-6 p-4">

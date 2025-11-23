@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertCircle, CheckCircle2, Copy, Sparkles } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Copy, Clock } from 'lucide-react';
 import { describeCronExpression, CRON_EXAMPLES, type CronDescription } from '@/lib/cron-utils';
 import { cn } from '@/lib/utils';
 
@@ -68,7 +68,7 @@ export function CronBuilder({ open, onOpenChange, value = '', onSelect }: CronBu
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
+            <Clock className="h-5 w-5 text-primary" />
             <DialogTitle>Cron Expression Builder</DialogTitle>
           </div>
           <DialogDescription>

@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertCircle, CheckCircle2, Copy, Sparkles } from 'lucide-react';
+import { CheckCircle2, Copy, Clock } from 'lucide-react';
 import { describeCronExpression, CRON_EXAMPLES, type CronDescription } from '@/lib/cron-utils';
 import { cn } from '@/lib/utils';
 import { FadeIn } from '@/components/motion/fade-in';
@@ -80,7 +80,7 @@ export default function CronBuilderPage() {
         <FadeIn>
           <div className="mb-6">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-6 w-6 text-primary" />
+              <Clock className="h-6 w-6 text-primary" />
               <h1 className="text-3xl font-bold">Cron Expression Builder</h1>
             </div>
             <p className="text-muted-foreground text-sm mt-2">
@@ -101,96 +101,96 @@ export default function CronBuilderPage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <Label className="text-sm font-medium">Build Cron Expression</Label>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleCopy}
-                          className="h-7 text-xs"
-                          disabled={!cronExpression.trim()}
-                        >
-                          {copied ? (
-                            <>
-                              <CheckCircle2 className="h-3 w-3 mr-1" />
-                              Copied!
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-3 w-3 mr-1" />
-                              Copy
-                            </>
-                          )}
-                        </Button>
-                      </div>
                     </div>
                     <CronInput value={cronExpression} onChange={handleExpressionChange} />
                   </div>
+                  {/* Validation Status */}
+                  {cronExpression.trim() && description && (
+                    <FadeIn delay={0.2}>
+                      <Card
+                        className={cn(
+                          'border mt-4',
+                          description.isValid
+                            ? 'border-green-500/20 bg-green-500/5'
+                            : 'border-destructive/50 bg-destructive/5'
+                        )}
+                      >
+                        <CardContent className="p-6">
+                          <div className="flex items-start gap-4">
+                            <div className="flex-1 space-y-3">
+                              {description.isValid ? (
+                                <>
+                                  <div>
+                                    <div className="flex items-center justify-between mb-1">
+                                      <div className="flex items-center gap-2">
+                                        <CheckCircle2 className="h-6 w-6 text-green-500 shrink-0 mt-0.5" />
+                                        <p className="text-sm font-medium text-green-500">
+                                          Valid Expression
+                                        </p>
+                                      </div>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleCopy}
+                                        className="h-7 text-xs"
+                                      >
+                                        {copied ? (
+                                          <>
+                                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                                            Copied!
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Copy className="h-3 w-3 mr-1" />
+                                            Copy
+                                          </>
+                                        )}
+                                      </Button>
+                                    </div>
+                                    <p className="text-base font-semibold text-foreground">
+                                      {description.description}
+                                    </p>
+                                  </div>
+                                  {description.nextRuns.length > 0 && (
+                                    <div>
+                                      <p className="text-sm font-medium text-muted-foreground mb-2">
+                                        Next runs (approximate):
+                                      </p>
+                                      <div className="flex flex-wrap gap-2">
+                                        {description.nextRuns.map((run, idx) => (
+                                          <Badge key={idx} variant="outline" className="text-xs">
+                                            {run}
+                                          </Badge>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              ) : (
+                                <div>
+                                  <p className="text-sm font-medium text-muted-foreground mb-1">
+                                    Error
+                                  </p>
+                                  <p className="text-base font-semibold text-destructive">
+                                    Invalid Expression
+                                  </p>
+                                  {description.error && (
+                                    <p className="text-sm text-destructive mt-2">
+                                      {description.error}
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </FadeIn>
+                  )}
                 </CardContent>
               </Card>
             </FadeIn>
-
-            {/* Validation Status */}
-            {cronExpression.trim() && description && (
-              <FadeIn delay={0.2}>
-                <Card
-                  className={cn(
-                    'border',
-                    description.isValid
-                      ? 'border-green-500/20 bg-green-500/5'
-                      : 'border-destructive/50 bg-destructive/5'
-                  )}
-                >
-                  <CardContent className="p-6">
-                    <div className="flex items-start gap-4">
-                      {description.isValid ? (
-                        <CheckCircle2 className="h-6 w-6 text-green-500 shrink-0 mt-0.5" />
-                      ) : (
-                        <AlertCircle className="h-6 w-6 text-destructive shrink-0 mt-0.5" />
-                      )}
-                      <div className="flex-1 space-y-3">
-                        {description.isValid ? (
-                          <>
-                            <div>
-                              <p className="text-sm font-medium text-muted-foreground mb-1">
-                                Description
-                              </p>
-                              <p className="text-base font-semibold text-foreground">
-                                {description.description}
-                              </p>
-                            </div>
-                            {description.nextRuns.length > 0 && (
-                              <div>
-                                <p className="text-sm font-medium text-muted-foreground mb-2">
-                                  Next runs (approximate):
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                  {description.nextRuns.map((run, idx) => (
-                                    <Badge key={idx} variant="outline" className="text-xs">
-                                      {run}
-                                    </Badge>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <div>
-                            <p className="text-sm font-medium text-muted-foreground mb-1">Error</p>
-                            <p className="text-base font-semibold text-destructive">
-                              Invalid Expression
-                            </p>
-                            {description.error && (
-                              <p className="text-sm text-destructive mt-2">{description.error}</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </FadeIn>
-            )}
 
             {/* Examples Section */}
             <FadeIn delay={0.3}>
@@ -227,7 +227,7 @@ export default function CronBuilderPage() {
             {/* Action Buttons for Authenticated Users */}
             {isAuthenticated && (
               <FadeIn delay={0.4}>
-                <div className="flex justify-end gap-3 pt-4">
+                <div className="flex justify-end gap-3 pt-1">
                   <Button type="button" variant="outline" onClick={() => navigate(returnUrl)}>
                     Cancel
                   </Button>

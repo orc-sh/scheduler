@@ -268,34 +268,10 @@ export function CronInput({ value = '', onChange, className }: CronInputProps) {
                   )}
                 />
                 {hasError && <p className="text-xs text-destructive">{fieldErrors[fieldName]}</p>}
-                {!hasError && fields[fieldName] && fields[fieldName] !== '*' && (
-                  <p className="text-xs text-muted-foreground truncate">{displayValue}</p>
-                )}
               </div>
             );
           })}
         </div>
-
-        {/* Combined Expression Display */}
-        <Card className="border">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex-1 min-w-0">
-                <Label className="text-xs font-medium text-muted-foreground mb-1 block">
-                  Cron Expression
-                </Label>
-                <code className="text-sm font-mono text-foreground break-all">
-                  {buildCronExpression(fields)}
-                </code>
-              </div>
-              {Object.keys(fieldErrors).length === 0 && (
-                <Badge variant="outline" className="text-xs shrink-0">
-                  Valid
-                </Badge>
-              )}
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </TooltipProvider>
   );

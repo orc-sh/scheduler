@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Bell, LogOut, Moon, Sun, User, Sparkles } from 'lucide-react';
+import { Home, PlusCircle, Bell, LogOut, Moon, Sun, User, CalendarClock } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from 'next-themes';
 import { useState, useRef, useEffect } from 'react';
@@ -45,8 +45,8 @@ const FloatingNavbar = () => {
       path: '/add-new',
     },
     {
-      icon: Sparkles,
-      label: 'Cron Builder',
+      icon: CalendarClock,
+      label: 'Cron Expression Builder',
       path: '/cron-builder',
     },
     {
@@ -79,7 +79,7 @@ const FloatingNavbar = () => {
                           'flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300',
                           'hover:bg-primary/10 hover:scale-110',
                           isActive
-                            ? 'bg-black text-white shadow-lg hover:bg-black/80 hover:text-white'
+                            ? 'bg-green-500 text-white shadow-lg hover:bg-green-500/80 hover:text-white'
                             : 'bg-transparent text-muted-foreground hover:text-primary'
                         )}
                         aria-label={item.label}
