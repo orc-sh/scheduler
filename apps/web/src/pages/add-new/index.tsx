@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { FadeIn } from '@/components/motion/fade-in';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -436,12 +437,12 @@ const AddNewPage = () => {
                       {/* Headers */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <Label className="text-xs font-medium">
-                            Headers
-                            <span className="text-xs text-muted-foreground font-normal ml-1.5">
-                              (Optional)
-                            </span>
-                          </Label>
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs font-medium">Headers</Label>
+                            <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-normal">
+                              Optional
+                            </Badge>
+                          </div>
                           <Button
                             type="button"
                             onClick={addHeader}
@@ -491,12 +492,12 @@ const AddNewPage = () => {
                       {/* Query Parameters */}
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <Label className="text-xs font-medium">
-                            Query Parameters
-                            <span className="text-xs text-muted-foreground font-normal ml-1.5">
-                              (Optional)
-                            </span>
-                          </Label>
+                          <div className="flex items-center gap-2">
+                            <Label className="text-xs font-medium">Query Parameters</Label>
+                            <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-normal">
+                              Optional
+                            </Badge>
+                          </div>
                           <Button
                             type="button"
                             onClick={addQueryParam}
@@ -545,12 +546,14 @@ const AddNewPage = () => {
 
                       {/* Body Template */}
                       <div className="space-y-1.5">
-                        <Label htmlFor="bodyTemplate" className="text-xs font-medium">
-                          Request Body Template
-                          <span className="text-xs text-muted-foreground font-normal ml-1.5">
-                            (Optional)
-                          </span>
-                        </Label>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="bodyTemplate" className="text-xs font-medium">
+                            Request Body Template
+                          </Label>
+                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-normal">
+                            Optional
+                          </Badge>
+                        </div>
                         <Textarea
                           id="bodyTemplate"
                           {...register('bodyTemplate')}

@@ -6,14 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from '@/components/ui/breadcrumb';
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -24,7 +16,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-  ArrowLeft,
   Pencil,
   Trash2,
   ExternalLink,
@@ -234,36 +225,13 @@ const WebhookDetailsPage = () => {
         {/* Header */}
         <FadeIn>
           <div className="space-y-4">
-            {/* Navigation Breadcrumb */}
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbLink
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      navigate('/dashboard');
-                    }}
-                    className="flex items-center gap-1.5"
-                  >
-                    <ArrowLeft className="h-3.5 w-3.5" />
-                    Dashboard
-                  </BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage className="truncate">{job?.name || 'Webhook'}</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-
             {/* Title and Actions */}
             <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
+              <div className="space-y-1">
                 <h1 className="text-2xl font-semibold tracking-tight text-foreground">
                   {job?.name || 'Unnamed Webhook'}
                 </h1>
-                <p className="text-sm text-muted-foreground mt-1 truncate">{webhook.url}</p>
+                <p className="text-sm text-muted-foreground">{webhook.url}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <Button
@@ -301,7 +269,7 @@ const WebhookDetailsPage = () => {
                 </div>
                 <div className="flex items-center gap-4 text-xs">
                   <div className="flex items-center gap-1.5">
-                    <div className="h-2 w-2 rounded-full bg-emerald-500" />
+                    <div className="h-2 w-2 rounded-full bg-green-500" />
                     <span className="text-muted-foreground">Success ({summaryStats.success})</span>
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -314,7 +282,7 @@ const WebhookDetailsPage = () => {
                 config={{
                   success: {
                     label: 'Success',
-                    color: 'hsl(160, 84%, 39%)',
+                    color: 'hsl(142, 71%, 45%)',
                   },
                   error: {
                     label: 'Error',
@@ -363,7 +331,7 @@ const WebhookDetailsPage = () => {
                                   variant="outline"
                                   className={
                                     data.status === 'success'
-                                      ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[10px] h-5 px-1.5'
+                                      ? 'bg-green-500/10 text-green-600 border-green-500/20 text-[10px] h-5 px-1.5'
                                       : 'bg-red-500/10 text-red-600 border-red-500/20 text-[10px] h-5 px-1.5'
                                   }
                                 >
@@ -390,7 +358,7 @@ const WebhookDetailsPage = () => {
                       <Cell
                         key={`cell-${index}`}
                         fill={
-                          entry.status === 'success' ? 'hsl(160, 84%, 39%)' : 'hsl(0, 84%, 60%)'
+                          entry.status === 'success' ? 'hsl(142, 71%, 45%)' : 'hsl(0, 84%, 60%)'
                         }
                         style={{ opacity: 0.9 }}
                       />
