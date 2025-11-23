@@ -1,198 +1,362 @@
-# Custom Scheduler Architecture
+# Scheduler Architecture & Job Processing
 
-Complete architecture blueprint for a user-facing scheduling platform (cronhooks-like) using FastAPI, Celery, MySQL (SQLAlchemy), Redis, and React for the dashboard.
+Complete architecture documentation for the Scheduler system, focusing on how jobs are processed from creation to execution.
 
 ## Table of Contents
 
-- [Goals](#goals)
-- [Non-goals](#non-goals)
-- [High-level Components](#high-level-components)
-- [Data Model](#data-model)
-- [Scheduler Design Patterns](#scheduler-design-patterns)
-- [Locking Strategies](#locking-strategies)
-- [Retry and Dead Letter Queue](#retry-and-dead-letter-queue)
-- [API Endpoints](#api-endpoints)
-- [Deployment](#deployment)
+- [System Overview](#system-overview)
+- [Core Components](#core-components)
+- [Job Processing Flow](#job-processing-flow)
+- [Data Models](#data-models)
+- [Scheduler Service](#scheduler-service)
+- [Execution Engine](#execution-engine)
+- [Retry & Dead Letter Queue](#retry--dead-letter-queue)
+- [Locking & Concurrency](#locking--concurrency)
+- [Multi-Tenancy](#multi-tenancy)
 - [Observability](#observability)
+- [Deployment & Scaling](#deployment--scaling)
 
-## Goals
+## System Overview
 
-- ✅ Allow users to create, edit, pause/resume, and delete schedules (cron/interval/one-off)
-- ✅ Persist schedules and execution history to a relational DB (MySQL)
-- ✅ Use Celery as an execution engine (task workers) — not the scheduler
-- ✅ Support multi-tenant use, high scale (thousands of schedules), and strong operational observability
-- ✅ Provide robust retry, DLQ, and audit logs for each execution
+The Scheduler is a distributed system for scheduling and executing webhook-based jobs using cron expressions. It consists of three main components:
 
-## Non-goals
+1. **API Service (FastAPI)** - REST API for managing jobs and schedules
+2. **Scheduler Service** - Standalone process that polls for due jobs and enqueues them
+3. **Execution Engine (Celery)** - Worker processes that execute webhook jobs
 
-- Replacing full orchestration systems like Temporal or Airflow. This is a lightweight SaaS scheduler focused on webhook-style jobs and simple user-defined tasks.
+### Architecture Diagram
 
-## High-level Components
+```
+┌─────────────┐
+│   Client    │
+│  (Browser)  │
+└──────┬──────┘
+       │ HTTP/REST
+       ▼
+┌─────────────────────────────────────┐
+│      API Service (FastAPI)          │
+│  - Job CRUD operations              │
+│  - Authentication & Authorization   │
+│  - Health checks & Metrics           │
+└──────┬──────────────────────────────┘
+       │
+       │ Writes to
+       ▼
+┌─────────────────────────────────────┐
+│         MySQL Database               │
+│  - Jobs table                        │
+│  - Job Executions table              │
+│  - Webhooks table                    │
+└──────┬───────────────────────────────┘
+       │
+       │ Polls for due jobs
+       ▼
+┌─────────────────────────────────────┐
+│    Scheduler Service (Standalone)   │
+│  - Polls database every N seconds    │
+│  - Acquires locks (Redis/DB)         │
+│  - Enqueues tasks to Celery          │
+│  - Updates next_run_at               │
+└──────┬───────────────────────────────┘
+       │
+       │ Enqueues tasks
+       ▼
+┌─────────────────────────────────────┐
+│         Redis (Broker)              │
+│  - Celery task queue                 │
+│  - Distributed locks                 │
+└──────┬───────────────────────────────┘
+       │
+       │ Consumes tasks
+       ▼
+┌─────────────────────────────────────┐
+│    Celery Workers (Execution)       │
+│  - Execute webhooks                 │
+│  - Handle retries                   │
+│  - Update execution status          │
+└─────────────────────────────────────┘
+```
+
+## Core Components
 
 ### 1. API Service (FastAPI)
 
 **Location**: `services/scheduler/app/`
 
-- Public REST API for managing schedules, viewing logs, and controlling runs
-- Authentication (Supabase / JWT / OAuth) and tenant isolation
-- Exposes endpoints that the UI uses and also internal endpoints for admin operations
-- **Main Entry Point**: `app/main.py`
-- **Controllers**: `app/controllers/schedule_controller.py`
+**Responsibilities**:
+- REST API endpoints for job management
+- Authentication and authorization (JWT)
+- Input validation and error handling
+- Health checks and metrics
 
-### 2. Scheduler Service (Standalone Process)
+**Key Files**:
+- `app/main.py` - FastAPI application entry point
+- `app/controllers/job_controller.py` - Job management endpoints
+- `app/services/job_service.py` - Business logic for jobs
+- `app/middleware/auth_middleware.py` - JWT authentication
+
+### 2. Scheduler Service
 
 **Location**: `services/scheduler/app/services/scheduler_service.py`
 
-- Small, horizontally-scalable process responsible for computing due jobs and enqueuing them into Celery
-- Written in Python, uses SQLAlchemy to read/write the DB, and Redis (or DB) for lightweight locks
-- Runs at a configurable tick (e.g., every 1–5 seconds) using polling pattern
-- **Entry Point**: `bin/scheduler.py` or `bin/scheduler.sh`
+**Responsibilities**:
+- Poll database for due jobs at configurable intervals
+- Acquire distributed locks to prevent duplicate enqueuing
+- Enqueue tasks to Celery
+- Update `next_run_at` for jobs
 
 **Key Features**:
-- Polls database for due schedules every N seconds (configurable)
-- Uses Redis distributed locks or DB row locks to prevent duplicate enqueuing
-- Updates `next_run_at` before enqueuing to Celery
-- Creates `ScheduleRun` records with status `QUEUED`
+- Polling pattern (configurable tick interval: 1-5 seconds)
+- Redis distributed locking (with DB fallback)
+- Batch processing (configurable batch size)
+- Adaptive polling (adjusts interval based on workload)
 
-### 3. Execution Engine — Celery Workers
+### 3. Execution Engine (Celery)
 
-**Location**: `services/scheduler/app/tasks/execute_schedule.py`
+**Location**: `services/scheduler/app/tasks/execute_job.py`
 
-- Receives tasks from the scheduler and executes them (HTTP webhooks, scripts, lambda-style code executions)
-- Responsible for retries, basic timeout control, and writing run results to DB
-- **Task**: `app.tasks.execute_schedule.execute_schedule`
+**Responsibilities**:
+- Execute webhook HTTP requests
+- Handle retries with configurable backoff
+- Manage dead letter queue
+- Track execution status and metrics
 
 **Key Features**:
-- Executes webhooks based on schedule payload
-- Handles retries with configurable backoff strategies
-- Moves failed runs to Dead Letter Queue after max attempts
-- Updates run status and duration
-- Supports task timeouts (5 minute hard, 4.5 minute soft)
+- Webhook execution via HTTP
+- Retry logic (exponential, linear, fixed backoff)
+- Task timeouts (5 min hard, 4.5 min soft)
+- Worker tracking and duration metrics
 
-### 4. MySQL (Primary Store)
+## Job Processing Flow
 
-**Location**: Database models in `app/models/`
+### Complete Lifecycle
 
-- Stores schedules, schedule metadata, run history (logs), tenant metadata, and user settings
-- **Models**:
-  - `Schedule`: Schedule definitions
-  - `ScheduleRun`: Execution history
+```
+1. CREATE JOB
+   └─> User creates job via API
+   └─> JobService validates cron expression
+   └─> Calculates next_run_at
+   └─> Stores in database
 
-### 5. Redis
+2. SCHEDULER POLLING
+   └─> SchedulerService polls every N seconds
+   └─> Queries: WHERE enabled=true AND next_run_at <= NOW()
+   └─> Finds due jobs
 
-- Broker for Celery tasks
-- Optional distributed locking (Redlock) for scheduler coordination
-- Short-lived caches
+3. LOCK ACQUISITION
+   └─> Attempts Redis lock (or DB row lock)
+   └─> Prevents duplicate enqueuing across instances
 
-### 6. React Dashboard
+4. TASK ENQUEUING
+   └─> Creates JobExecution record (status: "queued")
+   └─> Updates next_run_at (recalculates from cron)
+   └─> Enqueues Celery task with execution_id
 
-**Location**: `apps/web/`
+5. CELERY EXECUTION
+   └─> Worker picks up task
+   └─> Updates execution status to "running"
+   └─> Executes webhook HTTP request
+   └─> Updates execution status to "success" or "failure"
 
-- CRUD for schedules
-- Run history viewer
-- Monitoring dashboard
-- Per-tenant quotas and usage
-- Actions (run now, pause, resume)
+6. RETRY HANDLING (if failed)
+   └─> Checks attempt < max_attempts
+   └─> Calculates backoff delay
+   └─> Creates new execution with attempt+1
+   └─> Enqueues retry task with ETA
 
-### 7. Admin/Operator Tools
+7. DEAD LETTER QUEUE (if max attempts exceeded)
+   └─> Updates execution status to "dead_letter"
+   └─> Logs error for admin review
+```
 
-- Health endpoints (`/health`, `/health/detailed`)
-- Metrics endpoint (`/metrics`)
-- Maintenance endpoints to re-enqueue stuck jobs (future)
+### Detailed Flow Diagram
 
-### 8. Observability
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 1. Job Creation (API Service)                              │
+│    POST /api/jobs                                           │
+│    └─> JobService.create_job()                             │
+│        ├─> Validates cron expression                        │
+│        ├─> Calculates next_run_at                          │
+│        └─> Saves to database                                │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 2. Scheduler Polling (Scheduler Service)                    │
+│    SchedulerService.tick()                                 │
+│    └─> _get_due_jobs()                                      │
+│        └─> Query: enabled=true AND next_run_at <= NOW()    │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 3. Lock Acquisition                                         │
+│    _try_claim_and_enqueue()                                 │
+│    ├─> Try Redis lock: scheduler:lock:{job_id}            │
+│    └─> Fallback: DB row lock (SELECT FOR UPDATE)           │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 4. Task Enqueuing                                           │
+│    ├─> Create JobExecution (status: "queued")               │
+│    ├─> Recalculate next_run_at from cron                    │
+│    ├─> Update job.next_run_at                               │
+│    └─> celery_app.send_task("execute_job", [execution_id])  │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ▼
+┌─────────────────────────────────────────────────────────────┐
+│ 5. Celery Execution                                         │
+│    execute_job(execution_id)                                │
+│    ├─> Load JobExecution, Job, Webhook                     │
+│    ├─> Update status: "running"                             │
+│    ├─> Execute webhook HTTP request                         │
+│    └─> Update status: "success" or "failure"                │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                    ┌─────┴─────┐
+                    │           │
+              SUCCESS      FAILURE
+                    │           │
+                    │           ▼
+                    │   ┌───────────────────────────────┐
+                    │   │ 6. Retry Logic                 │
+                    │   │    _handle_execution_failure() │
+                    │   │    ├─> Check attempt < max     │
+                    │   │    ├─> Calculate backoff       │
+                    │   │    ├─> Create new execution    │
+                    │   │    └─> Enqueue retry (ETA)    │
+                    │   └───────────────────────────────┘
+                    │           │
+                    │           │ (if max attempts)
+                    │           ▼
+                    │   ┌───────────────────────────────┐
+                    │   │ 7. Dead Letter Queue           │
+                    │   │    Update status: "dead_letter"│
+                    │   └───────────────────────────────┘
+                    │
+                    ▼
+            ┌───────────────┐
+            │   Complete    │
+            └───────────────┘
+```
 
-- Prometheus-compatible metrics via `/metrics` endpoint
-- Health check endpoints
-- Centralized logs (structured logging)
-- Error tracking (Sentry integration ready)
-- Tracing (OpenTelemetry ready)
+## Data Models
 
-## Data Model
+### Job Model
 
-### `schedules` Table
+**Table**: `jobs`
 
 ```python
-id (UUID) - Primary key
-tenant_id (UUID) - Multi-tenant isolation
-user_id (UUID) - User who created the schedule
-name (string) - Schedule name
-type (enum: cron | interval | oneoff) - Schedule type
-cron_expr (string, nullable) - Cron expression (for cron/oneoff)
-interval_seconds (int, nullable) - Interval in seconds (for interval)
-next_run_at (datetime, indexed) - Next scheduled execution time
-last_run_at (datetime) - Last execution time
-status (enum: active | paused | deleted) - Schedule status
-payload (JSON) - Arbitrary metadata for execution (webhook config, etc.)
-retry_policy (JSON) - Retry configuration
-created_at, updated_at - Timestamps
+id: UUID (Primary Key)
+project_id: UUID (Foreign Key → projects.id)
+name: String(255)
+schedule: String(50)  # Cron expression (e.g., "0 2 * * *")
+type: Integer  # Job type identifier
+timezone: String(50)  # Default: "UTC"
+enabled: Boolean  # Default: true
+last_run_at: TIMESTAMP  # Last execution time
+next_run_at: TIMESTAMP  # Next scheduled execution (indexed)
+created_at: TIMESTAMP
+updated_at: TIMESTAMP
 ```
 
 **Indexes**:
-- `idx_schedules_tenant_status` on (tenant_id, status)
-- `idx_schedules_next_run_status` on (next_run_at, status)
-- `idx_schedules_user_id` on (user_id)
+- `idx_jobs_project_id` on `project_id`
+- `idx_jobs_next_run_at` on `next_run_at`
+- `idx_jobs_enabled` on `enabled`
 
-### `schedule_runs` Table
+**Key Fields**:
+- `schedule`: Cron expression (validated using `croniter`)
+- `next_run_at`: Precomputed next execution time (used by scheduler for querying)
+- `enabled`: Controls whether job is scheduled
+
+### JobExecution Model
+
+**Table**: `job_executions`
 
 ```python
-id (UUID) - Primary key
-schedule_id (UUID) - Foreign key to schedules
-tenant_id (UUID) - Multi-tenant isolation
-run_at (datetime, indexed) - Scheduled run time
-status (enum: queued | running | success | failed | timed_out | dead_letter)
-worker_id (string) - Celery worker that executed the run
-duration_ms (int) - Execution duration in milliseconds
-response (text) - Webhook response or execution output
-error (text) - Error message if failed
-attempt (int) - Retry attempt number
-created_at, updated_at - Timestamps
+id: UUID (Primary Key)
+job_id: UUID (Foreign Key → jobs.id)
+status: Enum  # queued, running, success, failure, timed_out, dead_letter
+started_at: TIMESTAMP
+finished_at: TIMESTAMP
+response_code: Integer  # HTTP response code
+response_body: Text  # Webhook response
+worker_id: String(255)  # Celery worker hostname
+duration_ms: Integer  # Execution duration
+error: Text  # Error message if failed
+attempt: Integer  # Retry attempt number (default: 1)
+created_at: TIMESTAMP
 ```
 
 **Indexes**:
-- `idx_schedule_runs_schedule_id` on (schedule_id)
-- `idx_schedule_runs_run_at` on (run_at)
-- `idx_schedule_runs_tenant_status` on (tenant_id, status)
-- `idx_schedule_runs_schedule_run_at` on (schedule_id, run_at)
+- `idx_job_executions_job_id` on `job_id`
+- `idx_job_executions_created_at` on `created_at`
+- `idx_job_executions_status` on `status`
 
-## Scheduler Design Patterns
+**Status Flow**:
+```
+queued → running → success
+                → failure → (retry) → queued → ...
+                → timed_out
+                → dead_letter (max attempts exceeded)
+```
 
-### Polling Scheduler (Implemented)
+### Webhook Model
 
-**Pattern**: Scheduler wakes every tick (1–5s default).
+**Table**: `webhooks`
 
-**Process**:
-1. Query DB: `SELECT * FROM schedules WHERE status='active' AND next_run_at <= now()`
-2. Acquire lock per schedule (Redis lock or DB row lock) to avoid double-enqueue
-3. Enqueue Celery task with `schedule_id` and `payload`
-4. Update `next_run_at` using `croniter` or interval calculation BEFORE commit
-5. Insert a `schedule_runs` record with status `'queued'`
+```python
+id: UUID (Primary Key)
+job_id: UUID (Foreign Key → jobs.id)
+url: String(500)  # Webhook URL
+method: Enum  # GET, POST, PUT, DELETE, PATCH
+headers: JSON  # HTTP headers
+query_params: JSON  # URL query parameters
+body_template: Text  # Request body template
+```
+
+## Scheduler Service
+
+### Polling Pattern
+
+The scheduler uses a **polling pattern** to find due jobs:
+
+1. **Tick Interval**: Configurable (default: 5 seconds)
+   - Environment variable: `SCHEDULER_TICK_INTERVAL`
+   - Can be set to 1-5 seconds for responsiveness
+
+2. **Query Pattern**:
+   ```sql
+   SELECT * FROM jobs
+   WHERE enabled = true
+     AND next_run_at <= NOW()
+   LIMIT batch_size
+   ```
+
+3. **Adaptive Polling** (optional):
+   - Starts at minimum interval (1s) when jobs are found
+   - Exponentially increases interval when no jobs found
+   - Caps at maximum interval (5s)
+   - Resets to minimum when jobs are found again
+
+### Lock Acquisition
+
+**Purpose**: Prevent multiple scheduler instances from enqueuing the same job.
+
+**Strategy 1: Redis Distributed Lock (Preferred)**
+
+```python
+lock_key = f"scheduler:lock:{job_id}"
+# Try to acquire lock with expiration
+redis.set(lock_key, "locked", ex=30, nx=True)
+```
 
 **Pros**:
-- Simple, easy to reason about
-- DB is the source of truth
-- Crash recovery is automatic (missed runs will be picked up on next tick)
-
-**Cons**:
-- Polling overhead at very large scale
-- Must tune tick, batching, and lock handling
-
-**Configuration**:
-- `SCHEDULER_TICK_INTERVAL`: Polling interval in seconds (default: 5)
-- `SCHEDULER_BATCH_SIZE`: Maximum schedules to process per tick (default: 100)
-
-## Locking Strategies
-
-### Redis Distributed Lock (Preferred)
-
-**Implementation**: `SchedulerService._acquire_redis_lock()`
-
-- Uses Redis `SET key value EX timeout NX` for atomic lock acquisition
-- Lock timeout: 30 seconds (configurable)
-- Prevents multiple scheduler instances from enqueuing the same schedule
-
-**Pros**:
-- Works well with multiple scheduler instances
+- Works across multiple scheduler instances
 - Fast and lightweight
 - Automatic expiration prevents deadlocks
 
@@ -200,26 +364,96 @@ created_at, updated_at - Timestamps
 - Requires Redis
 - Clock drift can cause issues (mitigated by short timeouts)
 
-### DB Row Lock (Fallback)
+**Strategy 2: DB Row Lock (Fallback)**
 
-**Implementation**: `SchedulerService._acquire_db_lock()`
-
-- Uses `SELECT ... FOR UPDATE NOWAIT` to acquire row-level lock
-- Fails immediately if another process has the lock
+```python
+# Use SELECT FOR UPDATE NOWAIT
+job = db.query(Job).filter(Job.id == job_id)
+    .with_for_update(nowait=True).first()
+```
 
 **Pros**:
 - No external dependencies
-- Works with any database that supports row locks
+- Works with any database supporting row locks
 
 **Cons**:
 - Less efficient with many scheduler instances
 - Database connection overhead
 
-## Retry and Dead Letter Queue
+### Next Run Calculation
+
+When a job is enqueued, the scheduler recalculates `next_run_at`:
+
+```python
+from croniter import croniter
+
+now = datetime.utcnow()
+cron = croniter(job.schedule, now)
+next_run = cron.get_next(datetime)
+job.next_run_at = next_run
+```
+
+This ensures the job will be picked up on the next scheduled time.
+
+## Execution Engine
+
+### Celery Task
+
+**Task Name**: `app.tasks.execute_job.execute_job`
+
+**Configuration**:
+- `acks_late=True` - Task acknowledged after completion
+- `max_retries=0` - Manual retry handling (not Celery retries)
+- `time_limit=300` - 5 minute hard timeout
+- `soft_time_limit=270` - 4.5 minute soft timeout
+
+### Execution Steps
+
+1. **Load Resources**:
+   ```python
+   execution = db.query(JobExecution).filter(id=execution_id).first()
+   job = db.query(Job).filter(id=execution.job_id).first()
+   webhook = db.query(Webhook).filter(job_id=job.id).first()
+   ```
+
+2. **Update Status**:
+   ```python
+   execution.status = "running"
+   execution.started_at = datetime.utcnow()
+   execution.worker_id = self.request.hostname
+   ```
+
+3. **Execute Webhook**:
+   ```python
+   response = httpx.request(
+       method=webhook.method,
+       url=webhook.url,
+       headers=webhook.headers,
+       params=webhook.query_params,
+       content=webhook.body_template
+   )
+   ```
+
+4. **Update Result**:
+   ```python
+   execution.status = "success"
+   execution.response_code = response.status_code
+   execution.response_body = response.text
+   execution.duration_ms = (end_time - start_time) * 1000
+   execution.finished_at = datetime.utcnow()
+   ```
+
+### Error Handling
+
+- **Timeout**: Catches `httpx.TimeoutException`, updates status to "failure"
+- **HTTP Errors**: Catches `httpx.HTTPStatusError`, updates status to "failure"
+- **Other Exceptions**: Catches all exceptions, updates status to "failure"
+
+## Retry & Dead Letter Queue
 
 ### Retry Policy
 
-Each schedule can have a custom retry policy:
+Default retry policy (configurable per job):
 
 ```json
 {
@@ -229,144 +463,133 @@ Each schedule can have a custom retry policy:
 }
 ```
 
-**Backoff Types**:
-- `exponential`: `base_delay * (2 ^ (attempt - 1))`
-- `linear`: `base_delay * attempt`
-- `fixed`: `base_delay`
+### Backoff Strategies
+
+1. **Exponential**:
+   ```
+   delay = base_delay * (2 ^ (attempt - 1))
+   Example: 60s, 120s, 240s
+   ```
+
+2. **Linear**:
+   ```
+   delay = base_delay * attempt
+   Example: 60s, 120s, 180s
+   ```
+
+3. **Fixed**:
+   ```
+   delay = base_delay
+   Example: 60s, 60s, 60s
+   ```
 
 ### Retry Flow
 
-1. When a run fails, `execute_schedule` task catches the exception
-2. Checks if `attempt < max_attempts`
-3. If yes:
-   - Calculates backoff delay
-   - Creates new `ScheduleRun` with `attempt + 1` and `run_at = now + backoff`
-   - Enqueues retry task with ETA
-4. If no:
-   - Updates run status to `DEAD_LETTER`
-   - Logs error for admin review
+```
+Execution fails
+    │
+    ▼
+Check: attempt < max_attempts?
+    │
+    ├─> YES: Calculate backoff delay
+    │       ├─> Create new JobExecution (attempt + 1)
+    │       ├─> Enqueue retry task with ETA
+    │       └─> Update current execution status: "failure"
+    │
+    └─> NO: Move to Dead Letter Queue
+            └─> Update execution status: "dead_letter"
+```
 
 ### Dead Letter Queue
 
-Runs that exceed `max_attempts` are moved to `DEAD_LETTER` status. These can be:
-- Viewed via API: `GET /api/schedules/{schedule_id}/runs?status=dead_letter`
-- Manually retried (future feature)
-- Alerted via webhook (future feature)
+Jobs that exceed `max_attempts` are moved to `dead_letter` status:
 
-## API Endpoints
+- **Status**: `dead_letter`
+- **Error Message**: Includes all attempt details
+- **Recovery**: Can be manually retried (future feature)
+- **Monitoring**: Should be alerted on DLQ growth
 
-### Schedule Management
+## Locking & Concurrency
 
-- `POST /api/schedules` - Create a new schedule
-- `GET /api/schedules` - List schedules (with filtering)
-- `GET /api/schedules/{schedule_id}` - Get schedule details
-- `PUT /api/schedules/{schedule_id}` - Update schedule
-- `DELETE /api/schedules/{schedule_id}` - Delete schedule (soft delete)
-- `POST /api/schedules/{schedule_id}/pause` - Pause schedule
-- `POST /api/schedules/{schedule_id}/resume` - Resume schedule
-- `POST /api/schedules/{schedule_id}/run-now` - Trigger immediate execution
-- `GET /api/schedules/{schedule_id}/runs` - Get execution history
+### Scheduler Instances
 
-### Health & Observability
+Multiple scheduler instances can run simultaneously:
 
-- `GET /health` - Basic health check
-- `GET /health/detailed` - Detailed health with DB connectivity and metrics
-- `GET /metrics` - Scheduler metrics (Prometheus-compatible)
+- **Coordination**: Redis distributed locks prevent duplicate enqueuing
+- **Scalability**: Each instance processes different jobs
+- **Fault Tolerance**: If one instance fails, others continue
 
-## Deployment
+### Celery Workers
 
-### Environment Variables
+Multiple Celery workers can run simultaneously:
 
-**Scheduler Service**:
-```bash
-DATABASE_URL=mysql+pymysql://user:password@localhost:3306/scheduler
-REDIS_URL=redis://localhost:6379/0
-SCHEDULER_TICK_INTERVAL=5  # seconds
-SCHEDULER_BATCH_SIZE=100
-```
+- **Task Distribution**: Celery automatically distributes tasks
+- **Concurrency**: Each worker can process multiple tasks (prefetch)
+- **Scaling**: Add more workers to increase throughput
 
-**FastAPI Service**:
-```bash
-DATABASE_URL=mysql+pymysql://user:password@localhost:3306/scheduler
-REDIS_URL=redis://localhost:6379/0
-SUPABASE_PROJECT_URL=https://your-project.supabase.co
-SUPABASE_ANON_PUBLIC_KEY=your-anon-key
-SUPABASE_JWT_SECRET=your-jwt-secret
-FRONTEND_URL=http://localhost:5173
-```
+### Database Concurrency
 
-**Celery Worker**:
-```bash
-DATABASE_URL=mysql+pymysql://user:password@localhost:3306/scheduler
-REDIS_URL=redis://localhost:6379/0
-```
+- **Row Locks**: Used when Redis unavailable
+- **Transaction Isolation**: Ensures consistency
+- **Indexes**: Optimize query performance
 
-### Running the Services
+## Multi-Tenancy
 
-1. **Start Infrastructure**:
-   ```bash
-   docker-compose up -d mysql redis
-   ```
+### Current Implementation
 
-2. **Run Database Migrations**:
-   ```bash
-   cd services/scheduler
-   alembic upgrade head
-   ```
+- **Tenant ID**: Uses `user_id` as tenant identifier
+- **Isolation**: All queries filtered by `user_id`
+- **Authorization**: Users can only access their own jobs
 
-3. **Start FastAPI**:
-   ```bash
-   cd services/scheduler
-   uvicorn app.main:app --reload --port 8000
-   ```
+### Future Enhancements
 
-4. **Start Scheduler Service**:
-   ```bash
-   cd services/scheduler
-   python -m bin.scheduler
-   # or
-   ./bin/scheduler.sh
-   ```
-
-5. **Start Celery Worker**:
-   ```bash
-   cd services/scheduler
-   celery -A app.celery worker -E -l info
-   ```
-
-6. **Start Celery Flower (Monitoring)**:
-   ```bash
-   cd services/scheduler
-   celery -A app.celery flower --port=4000
-   ```
-
-### Scaling
-
-- **Scheduler Service**: Can run multiple instances (they coordinate via Redis locks)
-- **Celery Workers**: Scale horizontally by adding more worker processes/containers
-- **FastAPI**: Scale horizontally behind a load balancer (stateless)
+- Add `tenants` table for organization-level multi-tenancy
+- Add `user_tenant_memberships` table
+- Support team/organization-based access control
 
 ## Observability
 
-### Metrics Endpoint
+### Health Checks
 
-`GET /metrics` returns:
+**Endpoint**: `GET /health`
+
+```json
+{
+  "status": "healthy",
+  "service": "scheduler"
+}
+```
+
+**Endpoint**: `GET /health/detailed`
+
+```json
+{
+  "status": "healthy",
+  "service": "scheduler",
+  "database": "connected",
+  "redis": "connected",
+  "scheduler_service": "running"
+}
+```
+
+### Metrics
+
+**Endpoint**: `GET /metrics`
 
 ```json
 {
   "timestamp": "2024-01-01T00:00:00",
-  "schedules": {
+  "jobs": {
     "total": 100,
-    "active": 85,
-    "paused": 10,
-    "deleted": 5
+    "enabled": 85,
+    "disabled": 15
   },
-  "runs": {
+  "executions": {
     "total": 10000,
     "queued": 5,
     "running": 2,
     "success": 9500,
-    "failed": 400,
+    "failure": 400,
     "dead_letter": 93,
     "success_rate": 95.0,
     "avg_duration_ms": 250.5
@@ -374,60 +597,118 @@ REDIS_URL=redis://localhost:6379/0
 }
 ```
 
-### Health Checks
-
-- `GET /health`: Basic liveness check
-- `GET /health/detailed`: Includes database connectivity and basic metrics
-
 ### Logging
 
 Structured logging with levels:
-- `INFO`: Normal operations (scheduler ticks, task execution)
-- `WARNING`: Recoverable issues (lock acquisition failures)
-- `ERROR`: Failures (task execution errors, DB connection issues)
 
-### Future Enhancements
+- **INFO**: Normal operations (scheduler ticks, task execution)
+- **WARNING**: Recoverable issues (lock acquisition failures)
+- **ERROR**: Failures (task execution errors, DB connection issues)
 
-- Prometheus exporter for `/metrics` endpoint
-- Grafana dashboards
-- Sentry integration for error tracking
-- OpenTelemetry tracing
-- Centralized logging (ELK/Loki)
+### Monitoring Recommendations
 
-## Multi-Tenancy
+- **Prometheus**: Scrape `/metrics` endpoint
+- **Grafana**: Create dashboards for:
+  - Job execution rates
+  - Success/failure rates
+  - Dead letter queue size
+  - Scheduler tick performance
+- **Alerts**: Set up for:
+  - High failure rate (> 10%)
+  - Dead letter queue growth
+  - Scheduler service down
+  - Database connection failures
 
-Currently, tenant isolation is implemented using `user_id` as `tenant_id` (single tenant per user). For true multi-tenancy:
+## Deployment & Scaling
 
-1. Add `tenants` table
-2. Add `user_tenant_memberships` table
-3. Update `_get_tenant_id()` in `schedule_controller.py` to resolve tenant from user's organization
-4. Add tenant-level quotas and rate limiting
+### Environment Variables
 
-## Security Considerations
+**Required**:
+```env
+DATABASE_URL=mysql+pymysql://user:password@localhost:3306/scheduler
+REDIS_URL=redis://localhost:6379/0
+```
 
-- All API endpoints require JWT authentication
-- Tenant isolation enforced at service layer
-- Users can only access their own schedules
-- Soft deletes prevent accidental data loss
-- Input validation on all schedule creation/updates
+**Optional**:
+```env
+SCHEDULER_TICK_INTERVAL=5  # Polling interval in seconds
+SCHEDULER_BATCH_SIZE=100   # Max jobs per tick
+```
 
-## Performance Considerations
+### Service Startup
 
-- Indexes on critical query paths (`next_run_at`, `status`, `tenant_id`)
-- Batch processing in scheduler (configurable batch size)
-- Connection pooling for database
-- Redis connection pooling
-- Celery task prefetch limits to prevent worker overload
+1. **FastAPI**:
+   ```bash
+   uvicorn app.main:app --host 0.0.0.0 --port 8000
+   ```
+
+2. **Scheduler Service**:
+   ```bash
+   python -m bin.scheduler
+   ```
+
+3. **Celery Worker**:
+   ```bash
+   celery -A app.celery worker -E -l info
+   ```
+
+### Scaling Strategy
+
+- **API Service**: Scale horizontally behind load balancer (stateless)
+- **Scheduler Service**: Run 1-2 instances (coordinate via Redis locks)
+- **Celery Workers**: Scale based on task volume (start with 2-4 workers)
+
+### Production Considerations
+
+1. **Database**:
+   - Connection pooling
+   - Read replicas for reporting
+   - Regular backups
+
+2. **Redis**:
+   - Persistence enabled
+   - High availability setup
+   - Memory monitoring
+
+3. **Monitoring**:
+   - Prometheus + Grafana
+   - Log aggregation (ELK/Loki)
+   - Error tracking (Sentry)
+
+4. **Security**:
+   - JWT token validation
+   - Rate limiting
+   - Input validation
+   - SQL injection prevention
+
+## Performance Optimization
+
+### Database
+
+- **Indexes**: Critical indexes on `next_run_at`, `enabled`, `job_id`
+- **Query Optimization**: Limit batch size to prevent large queries
+- **Connection Pooling**: Reuse database connections
+
+### Scheduler
+
+- **Batch Processing**: Process multiple jobs per tick
+- **Adaptive Polling**: Reduce polling frequency when idle
+- **Lock Timeout**: Short lock timeouts prevent blocking
+
+### Celery
+
+- **Prefetch Limit**: Control task prefetching
+- **Worker Concurrency**: Adjust based on workload
+- **Task Routing**: Route different job types to different queues
 
 ## Future Enhancements
 
 - Event-driven scheduler (Kafka/Redis Streams)
 - Webhook signature verification
-- Custom execution environments (Docker containers, Lambda functions)
+- Custom execution environments (Docker containers)
 - Schedule templates
 - Schedule dependencies
 - Timezone-aware scheduling
 - Schedule versioning
 - Admin dashboard for DLQ management
 - Webhook notifications for schedule failures
-
