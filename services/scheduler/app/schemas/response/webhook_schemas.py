@@ -28,6 +28,13 @@ class WebhookResponse(BaseModel):
                 "content_type": "application/json",
                 "created_at": "2024-01-01T00:00:00",
                 "updated_at": "2024-01-01T00:00:00",
+                "job": {
+                    "id": "123e4567-e89b-12d3-a456-426614174000",
+                    "name": "Daily Report Job",
+                    "schedule": "0 9 * * *",
+                    "timezone": "UTC",
+                    "enabled": True,
+                },
             }
         },
     )
@@ -42,10 +49,11 @@ class WebhookResponse(BaseModel):
     content_type: str = Field(..., description="Content type of the request")
     created_at: datetime = Field(..., description="When the webhook was created")
     updated_at: datetime = Field(..., description="When the webhook was last updated")
+    job: Optional[JobResponse] = Field(None, description="Associated job information")
 
 
-class CrownWebhookResponse(BaseModel):
-    """Schema for Crown webhook creation response"""
+class CronWebhookResponse(BaseModel):
+    """Schema for Cron webhook creation response"""
 
     model_config = ConfigDict(
         json_schema_extra={

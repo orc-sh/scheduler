@@ -5,7 +5,7 @@ Project controller for managing project CRUD operations.
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.dependencies import require_user_from_context
+from app.middleware.auth_middleware import get_current_user
 from app.models.user import User
 from app.schemas.request.project_schemas import CreateProjectRequest, UpdateProjectRequest
 from app.schemas.response.pagination_schemas import PaginatedResponse, PaginationMetadata
@@ -19,7 +19,7 @@ router = APIRouter()
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
 async def create_project(
     request: CreateProjectRequest,
-    user: User = Depends(require_user_from_context),
+    user: User = Depends(get_current_user),
     db: Session = Depends(client),
 ):
     """
@@ -45,7 +45,7 @@ async def create_project(
 async def get_projects(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(10, ge=1, le=100, description="Number of items per page (max: 100)"),
-    user: User = Depends(require_user_from_context),
+    user: User = Depends(get_current_user),
     db: Session = Depends(client),
 ):
     """
@@ -83,7 +83,7 @@ async def get_projects(
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(
     project_id: str,
-    user: User = Depends(require_user_from_context),
+    user: User = Depends(get_current_user),
     db: Session = Depends(client),
 ):
     """
@@ -116,7 +116,7 @@ async def get_project(
 async def update_project(
     project_id: str,
     request: UpdateProjectRequest,
-    user: User = Depends(require_user_from_context),
+    user: User = Depends(get_current_user),
     db: Session = Depends(client),
 ):
     """
@@ -149,7 +149,7 @@ async def update_project(
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
     project_id: str,
-    user: User = Depends(require_user_from_context),
+    user: User = Depends(get_current_user),
     db: Session = Depends(client),
 ):
     """

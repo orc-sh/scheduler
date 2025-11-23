@@ -21,7 +21,7 @@ export interface CreateWebhookRequest {
   content_type?: string;
 }
 
-export interface CreateCrownWebhookRequest {
+export interface CreateCronWebhookRequest {
   job: CreateJobRequest;
   webhook: CreateWebhookRequest;
 }
@@ -58,9 +58,10 @@ export interface Webhook {
   content_type: string;
   created_at: string;
   updated_at: string;
+  job?: Job | null;
 }
 
-export interface CrownWebhookResponse {
+export interface CronWebhookResponse {
   project: Project;
   job: Job;
   webhook: Webhook;

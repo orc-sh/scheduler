@@ -1,6 +1,7 @@
-import { Home, PlusCircle, Settings, LogOut, Moon, Sun } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Home, PlusCircle, Settings, LogOut, Moon, Sun, User } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from 'next-themes';
+import { useState, useRef, useEffect } from 'react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuthStore } from '@/stores/auth-store';
 import { useLogout } from '@/hooks/use-auth';
@@ -8,9 +9,29 @@ import { cn } from '@/lib/utils';
 
 const FloatingNavbar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const { mutate: logout } = useLogout();
   const { theme, setTheme } = useTheme();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDropdownOpen]);
 
   const navItems = [
     {
@@ -72,75 +93,93 @@ const FloatingNavbar = () => {
               );
             })}
 
-            {/* Profile Picture */}
+            {/* Profile Dropdown */}
             <li className="mt-2 border-t border-border pt-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Link
-                    to="/profile"
-                    className="flex items-center justify-center w-10 h-10 transition-all duration-300 hover:scale-110"
-                    aria-label="Profile"
-                  >
-                    <div className="w-8 h-8 rounded-full overflow-hidden">
-                      {avatarUrl ? (
-                        <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-white text-xs font-semibold">
-                          {initials}
+              <div
+                className="relative focus:outline-none focus-visible:outline-none focus:ring-0 focus-visible:ring-0"
+                ref={dropdownRef}
+              >
+                <button
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="flex items-center justify-center w-10 h-10 transition-all duration-300 hover:scale-110 focus:outline-none focus:ring-0"
+                  aria-label="Profile Menu"
+                >
+                  <div className="w-8 h-8 rounded-full overflow-hidden">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-white text-xs font-semibold">
+                        {initials}
+                      </div>
+                    )}
+                  </div>
+                </button>
+
+                {/* Custom Dropdown Menu */}
+                {isDropdownOpen && (
+                  <div className="absolute left-full ml-2 top-0 w-48 bg-popover border border-border rounded-md shadow-lg z-50 animate-in fade-in-0 zoom-in-95 slide-in-from-left-2">
+                    <div className="p-1">
+                      <div className="px-2 py-1.5 text-sm font-semibold text-popover-foreground">
+                        My Account
+                      </div>
+                      <div className="h-px bg-muted my-1" />
+
+                      <button
+                        onClick={() => {
+                          navigate('/profile');
+                          setIsDropdownOpen(false);
+                        }}
+                        className="relative flex w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground text-popover-foreground"
+                      >
+                        <User className="h-4 w-4" />
+                        <span>Profile</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          setTheme(theme === 'dark' ? 'light' : 'dark');
+                        }}
+                        className="relative flex w-full cursor-pointer select-none items-center justify-between rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground text-popover-foreground"
+                      >
+                        <div className="flex items-center gap-2">
+                          {theme === 'dark' ? (
+                            <Moon className="h-4 w-4" />
+                          ) : (
+                            <Sun className="h-4 w-4" />
+                          )}
+                          <span>Dark Mode</span>
                         </div>
-                      )}
+                        <div
+                          className={cn(
+                            'relative inline-flex h-5 w-9 items-center rounded-full transition-colors',
+                            theme === 'dark' ? 'bg-primary' : 'bg-input'
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'inline-block h-4 w-4 transform rounded-full bg-background shadow-lg transition-transform',
+                              theme === 'dark' ? 'translate-x-[1.125rem]' : 'translate-x-0.5'
+                            )}
+                          />
+                        </div>
+                      </button>
+
+                      <div className="h-px bg-muted my-1" />
+
+                      <button
+                        onClick={() => {
+                          logout();
+                          setIsDropdownOpen(false);
+                        }}
+                        className="relative flex w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-destructive/10 text-destructive"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>Logout</span>
+                      </button>
                     </div>
-                  </Link>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="right"
-                  className="bg-black text-white border-black px-2 py-1 text-xs font-medium"
-                >
-                  Profile
-                </TooltipContent>
-              </Tooltip>
-            </li>
-
-            {/* Theme Toggle */}
-            <li>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                    className="flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 hover:bg-primary/10 hover:scale-110 bg-transparent text-muted-foreground hover:text-primary"
-                    aria-label="Toggle theme"
-                  >
-                    {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="right"
-                  className="bg-black text-white border-black px-2 py-1 text-xs font-medium"
-                >
-                  {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-                </TooltipContent>
-              </Tooltip>
-            </li>
-
-            {/* Logout Button */}
-            <li>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => logout()}
-                    className="flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 hover:bg-destructive/10 hover:scale-110 bg-transparent text-muted-foreground hover:text-destructive"
-                    aria-label="Logout"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent
-                  side="right"
-                  className="bg-black text-white border-black px-2 py-1 text-xs font-medium"
-                >
-                  Logout
-                </TooltipContent>
-              </Tooltip>
+                  </div>
+                )}
+              </div>
             </li>
           </ul>
         </nav>

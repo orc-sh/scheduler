@@ -14,8 +14,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from app.context.user_context import clear_current_user_context, set_current_user_context
+from app.context.user_context import clear_current_user_context, get_current_user_context, set_current_user_context
 from app.main import app
+from app.middleware.auth_middleware import get_current_user
 from app.models.base import Base
 from app.models.user import User
 from db.client import client as get_db
@@ -92,7 +93,17 @@ def client(db_session: Session) -> Generator[TestClient, None, None]:
         finally:
             pass
 
+    async def override_get_current_user():
+        """Override to return user from context instead of JWT verification"""
+        user = get_current_user_context()
+        if user is None:
+            from fastapi import HTTPException, status
+
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+        return user
+
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = override_get_current_user
 
     with TestClient(app) as test_client:
         yield test_client

@@ -5,6 +5,8 @@ import LoginPage from '@/pages/login';
 import AuthCallbackPage from '@/pages/auth-callback';
 import DashboardPage from '@/pages/dashboard';
 import AddNewPage from '@/pages/add-new';
+import EditWebhookPage from '@/pages/edit';
+import WebhookDetailsPage from '@/pages/webhook-details';
 import SettingsPage from '@/pages/settings';
 import ProfilePage from '@/pages/profile';
 import NotFoundPage from '@/pages/not-found';
@@ -22,6 +24,8 @@ export const AppRouter = () => {
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/add-new" element={<AddNewPage />} />
+        <Route path="/webhooks/:id" element={<WebhookDetailsPage />} />
+        <Route path="/edit/:id" element={<EditWebhookPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
       </Route>

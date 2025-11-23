@@ -325,6 +325,83 @@ class TestWebhookServiceDelete:
 
 
 @pytest.mark.unit
+class TestWebhookServiceGetAll:
+    """Tests for get_all_webhooks method."""
+
+    def test_get_all_webhooks_empty(self, db_session: Session):
+        """Test retrieving webhooks when database is empty."""
+        service = WebhookService(db_session)
+
+        webhooks = service.get_all_webhooks()
+
+        assert webhooks == []
+
+    def test_get_all_webhooks_multiple(self, db_session: Session, test_user):
+        """Test retrieving all webhooks without pagination."""
+        project = ProjectFactory.create(db_session, test_user.id, "Test Project")
+        job = JobFactory.create(db_session, project.id, "Test Job")
+        WebhookFactory.create_batch(db_session, job.id, count=5)
+
+        service = WebhookService(db_session)
+        webhooks = service.get_all_webhooks()
+
+        assert len(webhooks) == 5
+
+    def test_get_all_webhooks_with_limit(self, db_session: Session, test_user):
+        """Test retrieving webhooks with limit."""
+        project = ProjectFactory.create(db_session, test_user.id, "Test Project")
+        job = JobFactory.create(db_session, project.id, "Test Job")
+        WebhookFactory.create_batch(db_session, job.id, count=10)
+
+        service = WebhookService(db_session)
+        webhooks = service.get_all_webhooks(limit=5)
+
+        assert len(webhooks) == 5
+
+    def test_get_all_webhooks_with_offset(self, db_session: Session, test_user):
+        """Test retrieving webhooks with offset."""
+        project = ProjectFactory.create(db_session, test_user.id, "Test Project")
+        job = JobFactory.create(db_session, project.id, "Test Job")
+        created_webhooks = WebhookFactory.create_batch(db_session, job.id, count=10)
+
+        service = WebhookService(db_session)
+        webhooks = service.get_all_webhooks(offset=5)
+
+        assert len(webhooks) == 5
+        # Verify we got the last 5 webhooks
+        webhook_ids = [w.id for w in webhooks]
+        expected_ids = [w.id for w in created_webhooks[5:]]
+        assert webhook_ids == expected_ids
+
+    def test_get_all_webhooks_with_limit_and_offset(self, db_session: Session, test_user):
+        """Test retrieving webhooks with both limit and offset."""
+        project = ProjectFactory.create(db_session, test_user.id, "Test Project")
+        job = JobFactory.create(db_session, project.id, "Test Job")
+        WebhookFactory.create_batch(db_session, job.id, count=20)
+
+        service = WebhookService(db_session)
+        webhooks = service.get_all_webhooks(limit=5, offset=5)
+
+        assert len(webhooks) == 5
+
+    def test_get_all_webhooks_multiple_jobs(self, db_session: Session, test_user):
+        """Test retrieving webhooks across multiple jobs."""
+        project = ProjectFactory.create(db_session, test_user.id, "Test Project")
+        job1 = JobFactory.create(db_session, project.id, "Job 1")
+        job2 = JobFactory.create(db_session, project.id, "Job 2")
+        job3 = JobFactory.create(db_session, project.id, "Job 3")
+
+        WebhookFactory.create_batch(db_session, job1.id, count=3)
+        WebhookFactory.create_batch(db_session, job2.id, count=4)
+        WebhookFactory.create_batch(db_session, job3.id, count=2)
+
+        service = WebhookService(db_session)
+        webhooks = service.get_all_webhooks()
+
+        assert len(webhooks) == 9
+
+
+@pytest.mark.unit
 class TestWebhookServiceFactory:
     """Tests for the service factory function."""
 

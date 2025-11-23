@@ -86,6 +86,24 @@ class WebhookService:
         """
         return self.db.query(Webhook).filter(Webhook.job_id == job_id).all()
 
+    def get_all_webhooks(self, limit: Optional[int] = None, offset: int = 0) -> List[Webhook]:
+        """
+        Get all webhooks with optional pagination.
+
+        Args:
+            limit: Maximum number of webhooks to return (optional)
+            offset: Number of webhooks to skip (default: 0)
+
+        Returns:
+            List of Webhook instances
+        """
+        query = self.db.query(Webhook)
+        if limit is not None:
+            query = query.limit(limit)
+        if offset > 0:
+            query = query.offset(offset)
+        return query.all()
+
     def update_webhook(
         self,
         webhook_id: str,

@@ -25,8 +25,8 @@ app.add_middleware(
 
 # Include each router with a specific prefix and tags for better organization
 app.include_router(health_controller.router, prefix="", tags=["Health"])
-app.include_router(project_controller.router, prefix="/projects", tags=["Projects"])
-app.include_router(webhook_controller.router, prefix="/webhooks", tags=["Webhooks"])
+app.include_router(project_controller.router, prefix="/api/projects", tags=["Projects"])
+app.include_router(webhook_controller.router, prefix="/api/webhooks", tags=["Webhooks"])
 
 # Note: Authentication routes have been moved to the separate auth service
 # running on port 8001. The scheduler service still uses the auth middleware
