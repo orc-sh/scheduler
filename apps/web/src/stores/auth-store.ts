@@ -17,24 +17,24 @@ interface AuthStoreState {
 
 export const useAuthStore = create<AuthStoreState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       accessToken: null,
       refreshToken: null,
       isAuthenticated: false,
 
       setUser: (user) =>
-        set({
+        set((state) => ({
           user,
-          isAuthenticated: !!user,
-        }),
+          isAuthenticated: !!user && !!(state.accessToken && state.refreshToken),
+        })),
 
       setTokens: (accessToken, refreshToken) =>
-        set({
+        set((state) => ({
           accessToken,
           refreshToken,
-          isAuthenticated: true,
-        }),
+          isAuthenticated: !!(accessToken && refreshToken) && !!state.user,
+        })),
 
       clearAuth: () =>
         set({

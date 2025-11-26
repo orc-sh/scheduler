@@ -2,6 +2,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from '@/routers/guards/protected-route';
 import PublicRoute from '@/routers/guards/public-route';
 import LoginPage from '@/pages/login';
+import SignUpPage from '@/pages/sign-up';
+import ForgotPasswordPage from '@/pages/forgot-password';
+import ResetPasswordPage from '@/pages/reset-password';
 import AuthCallbackPage from '@/pages/auth-callback';
 import CronBuilderPage from '@/pages/cron-builder';
 import DashboardPage from '@/pages/dashboard';
@@ -22,7 +25,10 @@ export const AppRouter = () => {
     <Routes>
       {/* Public routes */}
       <Route element={<PublicRoute />}>
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/sign-in" element={<LoginPage />} />
+        <Route path="/sign-up" element={<SignUpPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
       </Route>
 

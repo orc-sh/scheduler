@@ -28,9 +28,6 @@ const DashboardPage = () => {
   const { data: urlsData, isLoading, isError } = useUrls(currentPage, pageSize);
   const createUrl = useCreateUrl();
 
-  // Fetch current user data
-  useCurrentUser();
-
   const handleCreateUrl = async () => {
     if (!firstProject) {
       toast({

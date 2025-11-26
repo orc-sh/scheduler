@@ -106,7 +106,7 @@ api.interceptors.response.use(
       if (!refreshToken) {
         // No refresh token, clear everything and reject
         clearTokens();
-        window.location.href = '/login';
+        window.location.href = '/sign-in';
         return Promise.reject(error);
       }
 
@@ -128,7 +128,7 @@ api.interceptors.response.use(
         // Refresh failed, clear tokens and redirect to login
         processQueue(refreshError as Error);
         clearTokens();
-        window.location.href = '/login';
+        window.location.href = '/sign-in';
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

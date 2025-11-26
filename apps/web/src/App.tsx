@@ -9,7 +9,13 @@ const AppContent = () => {
   const location = useLocation();
 
   // Hide navbar on public routes
-  const publicRoutes = ['/login', '/auth/callback'];
+  const publicRoutes = [
+    '/sign-in',
+    '/sign-up',
+    '/forgot-password',
+    '/reset-password',
+    '/auth/callback',
+  ];
   const shouldShowNavbar = !publicRoutes.includes(location.pathname);
 
   return (

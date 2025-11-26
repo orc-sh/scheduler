@@ -34,13 +34,13 @@ const AuthCallbackPage = () => {
 
       if (errorParam) {
         setError(errorDescription || 'Authentication failed');
-        setTimeout(() => navigate('/login'), 3000);
+        setTimeout(() => navigate('/sign-in'), 3000);
         return;
       }
 
       if (!code) {
         setError('No authorization code received');
-        setTimeout(() => navigate('/login'), 3000);
+        setTimeout(() => navigate('/sign-in'), 3000);
         return;
       }
 
@@ -56,7 +56,7 @@ const AuthCallbackPage = () => {
         onError: (err) => {
           console.error('Error processing OAuth callback:', err);
           setError('Failed to complete authentication. Please try again.');
-          setTimeout(() => navigate('/login'), 3000);
+          setTimeout(() => navigate('/sign-in'), 3000);
         },
       });
     };

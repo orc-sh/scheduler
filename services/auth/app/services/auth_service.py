@@ -31,6 +31,105 @@ class AuthService:
 
         return response.url
 
+    async def sign_up_with_email(self, email: str, password: str, firstname: str, lastname: str) -> Dict:
+        """
+        Sign up a new user using email and password.
+
+        Args:
+            email: User's email address
+            password: User's password
+            firstname: User's first name
+            lastname: User's last name
+
+        Returns:
+            Dictionary containing access_token, refresh_token, expires_at and user info
+
+        Raises:
+            ValueError: If sign up fails
+        """
+        full_name = f"{firstname} {lastname}".strip()
+        try:
+            response = self.supabase.auth.sign_up(  # type: ignore[arg-type]
+                {
+                    "email": email,
+                    "password": password,
+                    "options": {
+                        "data": {
+                            "full_name": full_name,
+                            "first_name": firstname,
+                            "last_name": lastname,
+                        }
+                    }
+                }
+            )
+        except Exception as e:
+            error_msg = str(e)
+            if "already registered" in error_msg.lower() or "user already exists" in error_msg.lower():
+                raise ValueError("A user with this email already exists. Please sign in instead.")
+            raise ValueError(f"Failed to sign up user: {error_msg}")
+
+        if not response.user:
+            raise ValueError("Failed to sign up user: No user returned from Supabase")
+
+        # If email confirmation is required, session might be None
+        # In that case, we still return the user info but without tokens
+        if not response.session:
+            # Email confirmation required - user needs to confirm email before getting session
+            return {
+                "access_token": "",
+                "refresh_token": "",
+                "expires_at": 0,
+                "user": {
+                    "id": response.user.id,
+                    "email": response.user.email,
+                    "user_metadata": response.user.user_metadata,
+                },
+                "requires_email_confirmation": True,
+            }
+
+        return {
+            "access_token": response.session.access_token,
+            "refresh_token": response.session.refresh_token,
+            "expires_at": response.session.expires_at,
+            "user": {
+                "id": response.user.id,
+                "email": response.user.email,
+                "user_metadata": response.user.user_metadata,
+            },
+        }
+
+    async def sign_in_with_email(self, email: str, password: str) -> Dict:
+        """
+        Sign in a user using email and password.
+
+        Args:
+            email: User's email address
+            password: User's password
+
+        Returns:
+            Dictionary containing access_token, refresh_token, expires_at and user info
+
+        Raises:
+            ValueError: If authentication fails
+        """
+        response = self.supabase.auth.sign_in_with_password(  # type: ignore[arg-type]
+            {"email": email, "password": password}
+        )
+
+        if not response.session or not response.user:
+            raise ValueError("Invalid email or password")
+
+        return {
+            "access_token": response.session.access_token,
+            "refresh_token": response.session.refresh_token,
+            "expires_at": response.session.expires_at,
+            "user": {
+                "id": response.user.id,
+                "email": response.user.email,
+                "user_metadata": response.user.user_metadata,
+            },
+        }
+
     async def exchange_code_for_session(self, code: str) -> Dict:
         """
         Exchange OAuth authorization code for session tokens
@@ -94,6 +193,76 @@ class AuthService:
         except Exception as e:
             print(f"Error signing out: {e}")
             return False
+
+    async def forgot_password(self, email: str) -> bool:
+        """
+        Send password reset email to user.
+
+        Args:
+            email: User's email address
+
+        Returns:
+            True if email was sent successfully
+
+        Raises:
+            ValueError: If email sending fails
+        """
+        try:
+            redirect_to = f"{self.frontend_url}/reset-password"
+            response = self.supabase.auth.reset_password_for_email(  # type: ignore[arg-type]
+                email,
+                {"redirect_to": redirect_to}
+            )
+            return True
+        except Exception as e:
+            error_msg = str(e)
+            raise ValueError(f"Failed to send password reset email: {error_msg}")
+
+    async def reset_password(self, password: str, token: str) -> bool:
+        """
+        Reset user password using reset token.
+
+        Args:
+            password: New password
+            token: Password reset token from email (access_token from the reset URL)
+
+        Returns:
+            True if password was reset successfully
+
+        Raises:
+            ValueError: If password reset fails
+        """
+        try:
+            # The token from Supabase password reset email is an access_token
+            # Create a new Supabase client instance to avoid session conflicts
+            supabase_client = create_client(get_supabase_url(), get_supabase_key())
+            
+            # Verify the token by getting the user
+            try:
+                user_response = supabase_client.auth.get_user(token)
+                user = user_response.user  # type: ignore
+                if not user:
+                    raise ValueError("Invalid or expired reset token")
+            except Exception as verify_error:
+                raise ValueError(f"Invalid or expired reset token: {str(verify_error)}")
+            
+            # Set the session using the token as both access and refresh token
+            # For password reset tokens, we can use the token as the access token
+            supabase_client.auth.set_session(token, token)
+            
+            # Update password using the authenticated session
+            response = supabase_client.auth.update_user(cast(dict, {"password": password}))  # type: ignore[arg-type]
+            
+            if not response.user:
+                raise ValueError("Failed to update password")
+            
+            return True
+        except ValueError:
+            # Re-raise ValueError as-is
+            raise
+        except Exception as e:
+            error_msg = str(e)
+            raise ValueError(f"Failed to reset password: {error_msg}")
 
     async def get_user(self, access_token: str) -> Optional[Dict]:
         """
