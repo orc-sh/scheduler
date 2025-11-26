@@ -1,7 +1,10 @@
+from .collections import Collection  # noqa: F401
 from .http_method import HttpMethod  # noqa: F401
 from .job_executions import JobExecution  # noqa: F401
 from .jobs import Job  # noqa: F401
-from .load_test_configurations import LoadTestConfiguration  # noqa: F401
+
+# LoadTestConfiguration removed - replaced by Collection
+# from .load_test_configurations import LoadTestConfiguration  # noqa: F401
 from .load_test_reports import LoadTestReport  # noqa: F401
 from .load_test_results import LoadTestResult  # noqa: F401
 from .load_test_runs import LoadTestRun  # noqa: F401

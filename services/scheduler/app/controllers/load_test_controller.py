@@ -9,15 +9,22 @@ from sqlalchemy.orm import Session
 
 from app.celery import scheduler as celery_app
 from app.middleware.auth_middleware import get_current_user
-from app.models.load_test_configurations import LoadTestConfiguration
+from app.models.collections import Collection
 from app.models.load_test_reports import LoadTestReport
 from app.models.load_test_runs import LoadTestRun
 from app.models.user import User
 from app.models.webhooks import Webhook
-from app.schemas.request.load_test_schemas import CreateLoadTestConfigurationRequest, UpdateLoadTestConfigurationRequest
+from app.schemas.request.load_test_schemas import (
+    CreateCollectionRequest,
+    CreateLoadTestRunRequest,
+    CreateWebhookRequest,
+    ReorderWebhooksRequest,
+    UpdateCollectionRequest,
+    UpdateWebhookRequest,
+)
 from app.schemas.response.load_test_schemas import (
-    LoadTestConfigurationResponse,
-    LoadTestConfigurationWithRunsResponse,
+    CollectionResponse,
+    CollectionWithRunsResponse,
     LoadTestReportResponse,
     LoadTestReportWithResultsResponse,
     LoadTestRunResponse,
@@ -25,7 +32,7 @@ from app.schemas.response.load_test_schemas import (
     WebhookResponse,
 )
 from app.schemas.response.pagination_schemas import PaginatedResponse, PaginationMetadata
-from app.services.load_test_configuration_service import get_load_test_configuration_service
+from app.services.collection_service import get_collection_service
 from app.services.load_test_service import get_load_test_service
 from app.services.project_service import get_project_service
 from app.services.webhook_service import get_webhook_service
@@ -44,41 +51,49 @@ def build_webhook_response(webhook: Webhook) -> WebhookResponse:
         query_params=webhook.query_params,
         body_template=webhook.body_template,
         content_type=webhook.content_type,
+        order=webhook.order,
     )
 
 
-def build_configuration_response(
-    configuration: LoadTestConfiguration, include_webhook: bool = True
-) -> LoadTestConfigurationResponse:
-    """Build a LoadTestConfigurationResponse from LoadTestConfiguration."""
-    webhook_response = None
-    if include_webhook and configuration.webhook:
-        webhook_response = build_webhook_response(configuration.webhook)
+def build_collection_response(collection: Collection, include_webhooks: bool = True) -> CollectionResponse:
+    """Build a CollectionResponse from Collection."""
+    webhook_responses = []
+    if include_webhooks and collection.webhooks:
+        webhook_responses = [build_webhook_response(wh) for wh in collection.webhooks]
 
-    return LoadTestConfigurationResponse(
-        id=str(configuration.id),
-        project_id=str(configuration.project_id),
-        webhook_id=str(configuration.webhook_id),
-        name=configuration.name,
-        concurrent_users=configuration.concurrent_users,
-        duration_seconds=configuration.duration_seconds,
-        requests_per_second=configuration.requests_per_second,
-        created_at=configuration.created_at,
-        updated_at=configuration.updated_at,
-        webhook=webhook_response,
+    return CollectionResponse(
+        id=str(collection.id),
+        project_id=str(collection.project_id),
+        name=collection.name,
+        description=collection.description,
+        created_at=collection.created_at,
+        updated_at=collection.updated_at,
+        webhooks=webhook_responses,
     )
 
 
-def build_run_response(run: LoadTestRun) -> LoadTestRunResponse:
+def build_run_response(run: LoadTestRun, include_collection: bool = False) -> LoadTestRunResponse:
     """Build a LoadTestRunResponse from LoadTestRun."""
+    collection_response = None
+    if include_collection and run.collection:
+        collection_response = CollectionResponse(
+            id=str(run.collection.id),
+            name=run.collection.name,
+            description=run.collection.description,
+        )
+
     return LoadTestRunResponse(
         id=str(run.id),
-        load_test_configuration_id=str(run.load_test_configuration_id),
+        collection_id=str(run.collection_id),
         status=run.status,
+        concurrent_users=run.concurrent_users,
+        duration_seconds=run.duration_seconds,
+        requests_per_second=run.requests_per_second,
         started_at=run.started_at,
         completed_at=run.completed_at,
         created_at=run.created_at,
         updated_at=run.updated_at,
+        collection=collection_response,
     )
 
 
@@ -102,23 +117,23 @@ def build_report_response(report: LoadTestReport) -> LoadTestReportResponse:
     )
 
 
-# Configuration endpoints
-@router.post("/configurations", response_model=LoadTestConfigurationResponse, status_code=status.HTTP_201_CREATED)
-async def create_load_test_configuration(
-    request: CreateLoadTestConfigurationRequest,
+# Collection endpoints
+@router.post("/collections", response_model=CollectionResponse, status_code=status.HTTP_201_CREATED)
+async def create_collection(
+    request: CreateCollectionRequest,
     user: User = Depends(get_current_user),
     db: Session = Depends(client),
 ):
     """
-    Create a new load test configuration.
+    Create a new webhook collection.
 
     Args:
-        request: Load test configuration creation request
+        request: Collection creation request
         user: Current authenticated user
         db: Database session
 
     Returns:
-        Created load test configuration data
+        Created collection data
     """
     # Get or create project for user
     project_service = get_project_service(db)
@@ -139,47 +154,22 @@ async def create_load_test_configuration(
 
     project_id = str(project.id)
 
-    # Validate endpoint requirements
-    if not request.url or not request.method:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="url and method are required",
-        )
-
-    # Create webhook configuration
-    webhook_service = get_webhook_service(db)
-    webhook = webhook_service.create_webhook(
-        job_id=None,
-        url=request.url,
-        method=request.method,
-        headers=request.headers,
-        query_params=request.query_params,
-        body_template=request.body_template,
-        content_type=request.content_type or "application/json",
-    )
-
-    # Create load test configuration
-    config_service = get_load_test_configuration_service(db)
-    configuration = config_service.create_configuration(
+    # Create webhook collection
+    collection_service = get_collection_service(db)
+    collection = collection_service.create_collection(
         project_id=project_id,
-        webhook_id=str(webhook.id),
         name=request.name,
-        concurrent_users=request.concurrent_users,
-        duration_seconds=request.duration_seconds,
-        requests_per_second=request.requests_per_second,
+        description=request.description,
     )
 
-    # Refresh to get webhook relationship
-    db.refresh(configuration)
-    if configuration.webhook is None:
-        db.refresh(webhook)
-        configuration.webhook = webhook
+    # Refresh to get relationships
+    db.refresh(collection)
 
-    return build_configuration_response(configuration)
+    return build_collection_response(collection)
 
 
-@router.get("/configurations", response_model=PaginatedResponse[LoadTestConfigurationResponse])
-async def get_load_test_configurations(
+@router.get("/collections", response_model=PaginatedResponse[CollectionResponse])
+async def get_collections(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(10, ge=1, le=100, description="Number of items per page (max: 100)"),
     project_id: Optional[str] = Query(None, description="Filter by project ID"),
@@ -187,7 +177,7 @@ async def get_load_test_configurations(
     db: Session = Depends(client),
 ):
     """
-    Get all load test configurations with pagination.
+    Get all collections with pagination.
 
     Args:
         page: Page number
@@ -197,10 +187,10 @@ async def get_load_test_configurations(
         db: Database session
 
     Returns:
-        Paginated list of load test configurations
+        Paginated list of collections
     """
     project_service = get_project_service(db)
-    config_service = get_load_test_configuration_service(db)
+    collection_service = get_collection_service(db)
 
     # Get user's projects if project_id not specified
     if project_id:
@@ -228,27 +218,27 @@ async def get_load_test_configurations(
             ),
         )
 
-    # Get configurations for user's projects
+    # Get collections for user's projects
     skip = (page - 1) * page_size
-    all_configs = []
+    all_collections = []
     for pid in project_ids:
-        configs = config_service.get_configurations_by_project(pid, skip=0, limit=1000)
-        all_configs.extend(configs)
+        collections = collection_service.get_collections_by_project(pid, skip=0, limit=1000)
+        all_collections.extend(collections)
 
     # Manual pagination
-    total_items = len(all_configs)
+    total_items = len(all_collections)
     total_pages = (total_items + page_size - 1) // page_size
-    paginated_configs = all_configs[skip : skip + page_size]
+    paginated_collections = all_collections[skip : skip + page_size]
 
-    # Build responses with webhooks
-    for config in paginated_configs:
-        if config.webhook is None:
-            webhook = db.query(Webhook).filter(Webhook.id == config.webhook_id).first()
-            if webhook:
-                config.webhook = webhook
+    # Load webhooks for collections
+    webhook_service = get_webhook_service(db)
+    for collection in paginated_collections:
+        if not collection.webhooks:
+            webhooks = webhook_service.get_webhooks_by_collection(str(collection.id))
+            collection.webhooks = webhooks
 
     return PaginatedResponse(
-        data=[build_configuration_response(c) for c in paginated_configs],
+        data=[build_collection_response(c) for c in paginated_collections],
         pagination=PaginationMetadata(
             current_page=page,
             page_size=page_size,
@@ -260,193 +250,198 @@ async def get_load_test_configurations(
     )
 
 
-@router.get("/configurations/{config_id}", response_model=LoadTestConfigurationWithRunsResponse)
-async def get_load_test_configuration(
-    config_id: str,
+@router.get("/collections/{collection_id}", response_model=CollectionWithRunsResponse)
+async def get_load_test_collection(
+    collection_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(client),
 ):
     """
-    Get a load test configuration with its runs.
+    Get a load test collection with its runs.
 
     Args:
-        config_id: ID of the configuration
+        collection_id: ID of the collection
         user: Current authenticated user
         db: Database session
 
     Returns:
-        Load test configuration with runs
+        Load test collection with runs
     """
-    config_service = get_load_test_configuration_service(db)
-    configuration = config_service.get_configuration(config_id)
+    collection_service = get_collection_service(db)
+    collection = collection_service.get_collection(collection_id)
 
-    if not configuration:
+    if not collection:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Load test configuration with ID '{config_id}' not found",
+            detail=f"Collection with ID '{collection_id}' not found",
         )
 
     # Verify user has access through project
     project_service = get_project_service(db)
-    project = project_service.get_project(str(configuration.project_id), user.id)
+    project = project_service.get_project(str(collection.project_id), user.id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to access this configuration",
+            detail="You don't have permission to access this collection",
         )
 
-    # Get webhook
-    if configuration.webhook is None:
-        webhook = db.query(Webhook).filter(Webhook.id == configuration.webhook_id).first()
-        if webhook:
-            configuration.webhook = webhook
+    # Get webhooks
+    webhook_service = get_webhook_service(db)
+    if not collection.webhooks:
+        webhooks = webhook_service.get_webhooks_by_collection(collection_id)
+        collection.webhooks = webhooks
 
     # Get runs
     load_test_service = get_load_test_service(db)
-    runs = load_test_service.get_load_test_runs_by_configuration(config_id, skip=0, limit=100)
+    runs = load_test_service.get_load_test_runs_by_collection(collection_id, skip=0, limit=100)
 
-    config_response = build_configuration_response(configuration)
-    return LoadTestConfigurationWithRunsResponse(
+    config_response = build_collection_response(collection)
+    return CollectionWithRunsResponse(
         **config_response.model_dump(),
         runs=[build_run_response(run) for run in runs],
     )
 
 
-@router.put("/configurations/{config_id}", response_model=LoadTestConfigurationResponse)
-async def update_load_test_configuration(
-    config_id: str,
-    request: UpdateLoadTestConfigurationRequest,
+@router.put("/collections/{collection_id}", response_model=CollectionResponse)
+async def update_load_test_collection(
+    collection_id: str,
+    request: UpdateCollectionRequest,
     user: User = Depends(get_current_user),
     db: Session = Depends(client),
 ):
     """
-    Update a load test configuration.
+    Update a webhook collection.
 
     Args:
-        config_id: ID of the configuration
+        collection_id: ID of the collection
         request: Update request
         user: Current authenticated user
         db: Database session
 
     Returns:
-        Updated configuration
+        Updated collection
     """
-    config_service = get_load_test_configuration_service(db)
-    configuration = config_service.get_configuration(config_id)
+    collection_service = get_collection_service(db)
+    collection = collection_service.get_collection(collection_id)
 
-    if not configuration:
+    if not collection:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Load test configuration with ID '{config_id}' not found",
+            detail=f"Collection with ID '{collection_id}' not found",
         )
 
     # Verify user has access
     project_service = get_project_service(db)
-    project = project_service.get_project(str(configuration.project_id), user.id)
+    project = project_service.get_project(str(collection.project_id), user.id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to update this configuration",
+            detail="You don't have permission to update this collection",
         )
 
-    updated_config = config_service.update_configuration(
-        config_id,
+    updated_config = collection_service.update_collection(
+        collection_id,
         name=request.name,
-        concurrent_users=request.concurrent_users,
-        duration_seconds=request.duration_seconds,
-        requests_per_second=request.requests_per_second,
     )
 
     if not updated_config:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Load test configuration with ID '{config_id}' not found",
+            detail=f"Collection with ID '{collection_id}' not found",
         )
 
-    if updated_config.webhook is None:
-        webhook = db.query(Webhook).filter(Webhook.id == updated_config.webhook_id).first()
-        if webhook:
-            updated_config.webhook = webhook
+    # Load webhooks
+    webhook_service = get_webhook_service(db)
+    if not updated_config.webhooks:
+        webhooks = webhook_service.get_webhooks_by_collection(collection_id)
+        updated_config.webhooks = webhooks
 
-    return build_configuration_response(updated_config)
+    return build_collection_response(updated_config)
 
 
-@router.delete("/configurations/{config_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_load_test_configuration(
-    config_id: str,
+@router.delete("/collections/{collection_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_load_test_collection(
+    collection_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(client),
 ):
     """
-    Delete a load test configuration and all its runs.
+    Delete a load test collection and all its runs.
 
     Args:
-        config_id: ID of the configuration
+        collection_id: ID of the collection
         user: Current authenticated user
         db: Database session
     """
-    config_service = get_load_test_configuration_service(db)
-    configuration = config_service.get_configuration(config_id)
+    collection_service = get_collection_service(db)
+    collection = collection_service.get_collection(collection_id)
 
-    if not configuration:
+    if not collection:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Load test configuration with ID '{config_id}' not found",
+            detail=f"Collection with ID '{collection_id}' not found",
         )
 
     # Verify user has access
     project_service = get_project_service(db)
-    project = project_service.get_project(str(configuration.project_id), user.id)
+    project = project_service.get_project(str(collection.project_id), user.id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to delete this configuration",
+            detail="You don't have permission to delete this collection",
         )
 
-    config_service.delete_configuration(config_id)
+    collection_service.delete_collection(collection_id)
 
 
 # Run endpoints
 @router.post(
-    "/configurations/{config_id}/runs", response_model=LoadTestRunResponse, status_code=status.HTTP_201_CREATED
+    "/collections/{collection_id}/runs", response_model=LoadTestRunResponse, status_code=status.HTTP_201_CREATED
 )
 async def create_load_test_run(
-    config_id: str,
+    collection_id: str,
+    request: CreateLoadTestRunRequest,
     user: User = Depends(get_current_user),
     db: Session = Depends(client),
 ):
     """
-    Create a new load test run from a configuration.
+    Create a new load test run from a collection.
 
     Args:
-        config_id: ID of the load test configuration
+        collection_id: ID of the collection
+        request: Run creation request with execution parameters
         user: Current authenticated user
         db: Database session
 
     Returns:
         Created load test run
     """
-    config_service = get_load_test_configuration_service(db)
-    configuration = config_service.get_configuration(config_id)
+    collection_service = get_collection_service(db)
+    collection = collection_service.get_collection(collection_id)
 
-    if not configuration:
+    if not collection:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Load test configuration with ID '{config_id}' not found",
+            detail=f"Collection with ID '{collection_id}' not found",
         )
 
     # Verify user has access
     project_service = get_project_service(db)
-    project = project_service.get_project(str(configuration.project_id), user.id)
+    project = project_service.get_project(str(collection.project_id), user.id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to create runs for this configuration",
+            detail="You don't have permission to create runs for this collection",
         )
 
-    # Create run
+    # Create run with execution parameters
     load_test_service = get_load_test_service(db)
-    run = load_test_service.create_load_test_run(config_id)
+    run = load_test_service.create_load_test_run(
+        collection_id,
+        concurrent_users=request.concurrent_users,
+        duration_seconds=request.duration_seconds,
+        requests_per_second=request.requests_per_second,
+    )
 
     # Start load test in background using Celery
     celery_app.send_task(
@@ -458,43 +453,43 @@ async def create_load_test_run(
     return build_run_response(run)
 
 
-@router.get("/configurations/{config_id}/runs", response_model=List[LoadTestRunResponse])
+@router.get("/collections/{collection_id}/runs", response_model=List[LoadTestRunResponse])
 async def get_load_test_runs(
-    config_id: str,
+    collection_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(client),
 ):
     """
-    Get all runs for a configuration.
+    Get all runs for a collection.
 
     Args:
-        config_id: ID of the configuration
+        collection_id: ID of the collection
         user: Current authenticated user
         db: Database session
 
     Returns:
         List of load test runs
     """
-    config_service = get_load_test_configuration_service(db)
-    configuration = config_service.get_configuration(config_id)
+    collection_service = get_collection_service(db)
+    collection = collection_service.get_collection(collection_id)
 
-    if not configuration:
+    if not collection:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Load test configuration with ID '{config_id}' not found",
+            detail=f"Collection with ID '{collection_id}' not found",
         )
 
     # Verify user has access
     project_service = get_project_service(db)
-    project = project_service.get_project(str(configuration.project_id), user.id)
+    project = project_service.get_project(str(collection.project_id), user.id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to access this configuration",
+            detail="You don't have permission to access this collection",
         )
 
     load_test_service = get_load_test_service(db)
-    runs = load_test_service.get_load_test_runs_by_configuration(config_id, skip=0, limit=100)
+    runs = load_test_service.get_load_test_runs_by_collection(collection_id, skip=0, limit=100)
 
     return [build_run_response(run) for run in runs]
 
@@ -531,17 +526,17 @@ async def get_load_test_run(
             detail=f"Load test run with ID '{run_id}' not found",
         )
 
-    # Verify user has access through configuration
-    config_service = get_load_test_configuration_service(db)
-    configuration = config_service.get_configuration(run.load_test_configuration_id)
-    if not configuration:
+    # Verify user has access through collection
+    collection_service = get_collection_service(db)
+    collection = collection_service.get_collection(run.collection_id)
+    if not collection:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Configuration not found for this run",
         )
 
     project_service = get_project_service(db)
-    project = project_service.get_project(str(configuration.project_id), user.id)
+    project = project_service.get_project(str(collection.project_id), user.id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -630,16 +625,16 @@ async def run_load_test(
         )
 
     # Verify user has access
-    config_service = get_load_test_configuration_service(db)
-    configuration = config_service.get_configuration(load_test_run.load_test_configuration_id)
-    if not configuration:
+    collection_service = get_collection_service(db)
+    collection = collection_service.get_collection(load_test_run.collection_id)
+    if not collection:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Configuration not found for this run",
         )
 
     project_service = get_project_service(db)
-    project = project_service.get_project(str(configuration.project_id), user.id)
+    project = project_service.get_project(str(collection.project_id), user.id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -706,16 +701,16 @@ async def delete_load_test_run(
         )
 
     # Verify user has access
-    config_service = get_load_test_configuration_service(db)
-    configuration = config_service.get_configuration(load_test_run.load_test_configuration_id)
-    if not configuration:
+    collection_service = get_collection_service(db)
+    collection = collection_service.get_collection(load_test_run.collection_id)
+    if not collection:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Configuration not found for this run",
         )
 
     project_service = get_project_service(db)
-    project = project_service.get_project(str(configuration.project_id), user.id)
+    project = project_service.get_project(str(collection.project_id), user.id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -753,16 +748,16 @@ async def get_load_test_reports(
         )
 
     # Verify user has access
-    config_service = get_load_test_configuration_service(db)
-    configuration = config_service.get_configuration(run.load_test_configuration_id)
-    if not configuration:
+    collection_service = get_collection_service(db)
+    collection = collection_service.get_collection(run.collection_id)
+    if not collection:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Configuration not found for this run",
         )
 
     project_service = get_project_service(db)
-    project = project_service.get_project(str(configuration.project_id), user.id)
+    project = project_service.get_project(str(collection.project_id), user.id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -805,7 +800,7 @@ async def get_load_test_report(
             detail=f"Load test report with ID '{report_id}' not found",
         )
 
-    # Verify user has access through run -> configuration
+    # Verify user has access through run -> collection
     run = load_test_service.get_load_test_run(report.load_test_run_id)
     if not run:
         raise HTTPException(
@@ -813,16 +808,16 @@ async def get_load_test_report(
             detail="Run not found for this report",
         )
 
-    config_service = get_load_test_configuration_service(db)
-    configuration = config_service.get_configuration(run.load_test_configuration_id)
-    if not configuration:
+    collection_service = get_collection_service(db)
+    collection = collection_service.get_collection(run.collection_id)
+    if not collection:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Configuration not found",
         )
 
     project_service = get_project_service(db)
-    project = project_service.get_project(str(configuration.project_id), user.id)
+    project = project_service.get_project(str(collection.project_id), user.id)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -856,3 +851,205 @@ async def get_load_test_report(
         **build_report_response(report).model_dump(),
         results=result_responses,
     )
+
+
+# Webhook management endpoints
+@router.post(
+    "/collections/{collection_id}/webhooks", response_model=WebhookResponse, status_code=status.HTTP_201_CREATED
+)
+async def create_webhook(
+    collection_id: str,
+    request: CreateWebhookRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(client),
+):
+    """
+    Create a new webhook for a load test collection.
+
+    Args:
+        collection_id: ID of the load test collection
+        request: Webhook creation request
+        user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Created webhook data
+    """
+    # Verify collection exists and user has access
+    collection_service = get_collection_service(db)
+    collection = collection_service.get_collection(collection_id)
+
+    if not collection:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Collection with ID '{collection_id}' not found",
+        )
+
+    project_service = get_project_service(db)
+    project = project_service.get_project(str(collection.project_id), user.id)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to access this collection",
+        )
+
+    # Create webhook
+    webhook_service = get_webhook_service(db)
+    webhook = webhook_service.create_webhook(
+        collection_id=collection_id,
+        url=request.url,
+        method=request.method,
+        headers=request.headers,
+        query_params=request.query_params,
+        body_template=request.body_template,
+        content_type=request.content_type or "application/json",
+        order=request.order,
+    )
+
+    return build_webhook_response(webhook)
+
+
+@router.put("/webhooks/{webhook_id}", response_model=WebhookResponse)
+async def update_webhook(
+    webhook_id: str,
+    request: UpdateWebhookRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(client),
+):
+    """
+    Update a webhook.
+
+    Args:
+        webhook_id: ID of the webhook
+        request: Webhook update request
+        user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Updated webhook data
+    """
+    webhook_service = get_webhook_service(db)
+    webhook = webhook_service.get_webhook(webhook_id)
+
+    if not webhook:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Webhook with ID '{webhook_id}' not found",
+        )
+
+    # Verify user has access through collection
+    if webhook.collection_id:
+        collection_service = get_collection_service(db)
+        collection = collection_service.get_collection(webhook.collection_id)
+        if collection:
+            project_service = get_project_service(db)
+            project = project_service.get_project(str(collection.project_id), user.id)
+            if not project:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You don't have permission to update this webhook",
+                )
+
+    # Update webhook
+    updated_webhook = webhook_service.update_webhook(
+        webhook_id,
+        url=request.url,
+        method=request.method,
+        headers=request.headers,
+        query_params=request.query_params,
+        body_template=request.body_template,
+        content_type=request.content_type,
+        order=request.order,
+    )
+
+    if not updated_webhook:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Webhook with ID '{webhook_id}' not found",
+        )
+
+    return build_webhook_response(updated_webhook)
+
+
+@router.delete("/webhooks/{webhook_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_webhook(
+    webhook_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(client),
+):
+    """
+    Delete a webhook.
+
+    Args:
+        webhook_id: ID of the webhook
+        user: Current authenticated user
+        db: Database session
+    """
+    webhook_service = get_webhook_service(db)
+    webhook = webhook_service.get_webhook(webhook_id)
+
+    if not webhook:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Webhook with ID '{webhook_id}' not found",
+        )
+
+    # Verify user has access through collection
+    if webhook.collection_id:
+        collection_service = get_collection_service(db)
+        collection = collection_service.get_collection(webhook.collection_id)
+        if collection:
+            project_service = get_project_service(db)
+            project = project_service.get_project(str(collection.project_id), user.id)
+            if not project:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You don't have permission to delete this webhook",
+                )
+
+    webhook_service.delete_webhook(webhook_id)
+
+
+@router.patch("/collections/{collection_id}/webhooks/reorder", status_code=status.HTTP_204_NO_CONTENT)
+async def reorder_webhooks(
+    collection_id: str,
+    request: ReorderWebhooksRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(client),
+):
+    """
+    Reorder webhooks for a collection.
+
+    Args:
+        collection_id: ID of the collection
+        request: Reorder request with webhook IDs in desired order
+        user: Current authenticated user
+        db: Database session
+    """
+    # Verify collection exists and user has access
+    collection_service = get_collection_service(db)
+    collection = collection_service.get_collection(collection_id)
+
+    if not collection:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Collection with ID '{collection_id}' not found",
+        )
+
+    project_service = get_project_service(db)
+    project = project_service.get_project(str(collection.project_id), user.id)
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to access this collection",
+        )
+
+    # Reorder webhooks
+    webhook_service = get_webhook_service(db)
+    success = webhook_service.reorder_webhooks(collection_id, request.webhook_ids)
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to reorder webhooks. Ensure all webhook IDs belong to this collection.",
+        )

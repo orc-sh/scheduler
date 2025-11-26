@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  useLoadTestConfiguration,
+  useCollection,
   useCreateLoadTestRun,
-  useDeleteLoadTestConfiguration,
-  useUpdateLoadTestConfiguration,
+  useDeleteCollection,
+  useUpdateCollection,
   useLoadTestRun,
   useLoadTestReport,
 } from '@/hooks/use-load-tests';
+import { WebRequestList } from '@/components/load-tests/web-request-list';
 import { FadeIn } from '@/components/motion/fade-in';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -50,7 +51,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import type { UpdateLoadTestConfigurationRequest } from '@/types/load-test.types';
+import type { UpdateCollectionRequest } from '@/types/load-test.types';
 
 const LoadTestDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -59,32 +60,28 @@ const LoadTestDetailsPage = () => {
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [editFormData, setEditFormData] = useState<UpdateLoadTestConfigurationRequest>({
+  const [editFormData, setEditFormData] = useState<UpdateCollectionRequest>({
     name: '',
+  });
+  const [isRunDialogOpen, setIsRunDialogOpen] = useState(false);
+  const [runFormData, setRunFormData] = useState({
     concurrent_users: 10,
     duration_seconds: 60,
-    requests_per_second: undefined,
+    requests_per_second: undefined as number | undefined,
   });
   const pageSize = 50;
 
   // Fetch configuration with runs
-  const {
-    data: config,
-    isLoading: configLoading,
-    isError: configError,
-  } = useLoadTestConfiguration(id || '');
+  const { data: config, isLoading: configLoading, isError: configError } = useCollection(id || '');
   const createRun = useCreateLoadTestRun();
-  const deleteConfig = useDeleteLoadTestConfiguration();
-  const updateConfig = useUpdateLoadTestConfiguration();
+  const deleteConfig = useDeleteCollection();
+  const updateConfig = useUpdateCollection();
 
   // Initialize edit form when config loads
   useEffect(() => {
     if (config) {
       setEditFormData({
         name: config.name,
-        concurrent_users: config.concurrent_users,
-        duration_seconds: config.duration_seconds,
-        requests_per_second: undefined, // Not editable for now
       });
     }
   }, [config]);
@@ -127,7 +124,22 @@ const LoadTestDetailsPage = () => {
   const handleCreateRun = async () => {
     if (!id) return;
     try {
-      await createRun.mutateAsync(id);
+      await createRun.mutateAsync({
+        collectionId: id,
+        data: {
+          collection_id: id || '',
+          concurrent_users: runFormData.concurrent_users,
+          duration_seconds: runFormData.duration_seconds,
+          requests_per_second: runFormData.requests_per_second,
+        },
+      });
+      setIsRunDialogOpen(false);
+      // Reset form
+      setRunFormData({
+        concurrent_users: 10,
+        duration_seconds: 60,
+        requests_per_second: undefined,
+      });
     } catch (error) {
       // Error handled by hook
     }
@@ -179,7 +191,7 @@ const LoadTestDetailsPage = () => {
         <div className="container mx-auto max-w-6xl">
           <FadeIn>
             <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 text-sm text-destructive">
-              Failed to load benchmark configuration. Please try again.
+              Failed to load collection. Please try again.
             </div>
           </FadeIn>
         </div>
@@ -217,17 +229,22 @@ const LoadTestDetailsPage = () => {
                   <h1 className="text-3xl font-bold tracking-tight">{config.name}</h1>
                 </div>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Benchmark Configuration • {runs.length} run{runs.length !== 1 ? 's' : ''}
+                  Webhook Collection • {runs.length} run{runs.length !== 1 ? 's' : ''}
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <Button
-                onClick={handleCreateRun}
-                disabled={createRun.isPending}
+                onClick={() => setIsRunDialogOpen(true)}
+                disabled={createRun.isPending || !config.webhooks || config.webhooks.length === 0}
                 size="sm"
                 variant="outline"
                 className="border-border hover:border-primary hover:text-primary"
+                title={
+                  !config.webhooks || config.webhooks.length === 0
+                    ? 'Add at least one web request before running the test'
+                    : ''
+                }
               >
                 <Play className="mr-2 h-4 w-4" />
                 Run Test
@@ -247,7 +264,7 @@ const LoadTestDetailsPage = () => {
                       onClick={handleEdit}
                     >
                       <Edit className="mr-2 h-4 w-4" />
-                      Edit Configuration
+                      Edit Collection
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -264,8 +281,8 @@ const LoadTestDetailsPage = () => {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                           <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the benchmark
-                            configuration and all its runs and reports.
+                            This action cannot be undone. This will permanently delete the
+                            collection and all its runs and reports.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -285,139 +302,46 @@ const LoadTestDetailsPage = () => {
             </div>
           </div>
 
-          {/* Configuration Details */}
+          {/* Collection Details */}
           <Card className="rounded-xl border-border/50 mb-6">
             <CardHeader>
-              <CardTitle className="text-lg">Configuration</CardTitle>
+              <CardTitle className="text-lg">Collection</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                {/* URL on top */}
                 <div>
-                  <p className="text-xs text-muted-foreground mb-1">URL</p>
-                  <p className="text-sm font-mono break-all">{config.webhook?.url || 'N/A'}</p>
+                  <p className="text-xs text-muted-foreground mb-1">Name</p>
+                  <p className="text-sm font-medium">{config.name || 'Unnamed Collection'}</p>
                 </div>
-
-                {/* Second row: Threads, Duration, Method */}
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Concurrent Threads</p>
-                    <div className="flex items-center gap-1.5">
-                      <Zap className="h-3.5 w-3.5 text-muted-foreground" />
-                      <p className="text-sm font-medium">{config.concurrent_users}</p>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Duration</p>
-                    <div className="flex items-center gap-1.5">
-                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                      <p className="text-sm font-medium">{config.duration_seconds}s</p>
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">HTTP Method</p>
-                    <Badge variant="outline" className="font-mono">
-                      {config.webhook?.method || 'N/A'}
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Advanced Configuration - only show if exists */}
-                {(config.webhook?.headers ||
-                  config.webhook?.query_params ||
-                  config.webhook?.body_template) && (
-                  <div className="pt-4 border-t border-border/50 space-y-3">
-                    {config.webhook.headers && Object.keys(config.webhook.headers).length > 0 && (
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-2">Headers</p>
-                        <div className="bg-muted/50 rounded p-2 space-y-1">
-                          {Object.entries(config.webhook.headers).map(([key, value]) => (
-                            <div key={key} className="text-xs font-mono">
-                              <span className="text-muted-foreground">{key}:</span> {value}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {config.webhook.query_params &&
-                      Object.keys(config.webhook.query_params).length > 0 && (
-                        <div>
-                          <p className="text-xs text-muted-foreground mb-2">Query Parameters</p>
-                          <div className="bg-muted/50 rounded p-2 space-y-1">
-                            {Object.entries(config.webhook.query_params).map(([key, value]) => (
-                              <div key={key} className="text-xs font-mono">
-                                <span className="text-muted-foreground">{key}:</span> {value}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    {config.webhook.body_template && (
-                      <div>
-                        <p className="text-xs text-muted-foreground mb-2">Request Body</p>
-                        <pre className="bg-muted/50 rounded p-2 text-xs font-mono overflow-x-auto max-h-40 overflow-y-auto">
-                          {config.webhook.body_template}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             </CardContent>
           </Card>
 
-          {/* Edit Configuration Dialog */}
+          {/* Web Requests Section */}
+          <Card className="rounded-xl border-border/50 mb-6">
+            <CardHeader>
+              <CardTitle className="text-lg">Web Requests</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <WebRequestList collectionId={id || ''} webhooks={config.webhooks || []} />
+            </CardContent>
+          </Card>
+
+          {/* Edit Collection Dialog */}
           <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Edit Configuration</DialogTitle>
-                <DialogDescription>
-                  Update the benchmark configuration settings. Changes will apply to future test
-                  runs.
-                </DialogDescription>
+                <DialogTitle>Edit Collection</DialogTitle>
+                <DialogDescription>Update the collection name.</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit-name">Configuration Name</Label>
+                  <Label htmlFor="edit-name">Collection Name</Label>
                   <Input
                     id="edit-name"
                     value={editFormData.name}
                     onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
                   />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-concurrent-users">Concurrent Threads</Label>
-                    <Input
-                      id="edit-concurrent-users"
-                      type="number"
-                      min="1"
-                      max="1000"
-                      value={editFormData.concurrent_users}
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          concurrent_users: parseInt(e.target.value) || 1,
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-duration">Duration (seconds)</Label>
-                    <Input
-                      id="edit-duration"
-                      type="number"
-                      min="1"
-                      max="3600"
-                      value={editFormData.duration_seconds}
-                      onChange={(e) =>
-                        setEditFormData({
-                          ...editFormData,
-                          duration_seconds: parseInt(e.target.value) || 60,
-                        })
-                      }
-                    />
-                  </div>
                 </div>
               </div>
               <DialogFooter>
@@ -426,6 +350,78 @@ const LoadTestDetailsPage = () => {
                 </Button>
                 <Button onClick={handleSaveEdit} disabled={updateConfig.isPending}>
                   {updateConfig.isPending ? 'Saving...' : 'Save Changes'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Run Test Dialog */}
+          <Dialog open={isRunDialogOpen} onOpenChange={setIsRunDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Run Test</DialogTitle>
+                <DialogDescription>
+                  Configure execution parameters for this test run.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="run-concurrent-users">Concurrent Threads</Label>
+                    <Input
+                      id="run-concurrent-users"
+                      type="number"
+                      min="1"
+                      max="1000"
+                      value={runFormData.concurrent_users}
+                      onChange={(e) =>
+                        setRunFormData({
+                          ...runFormData,
+                          concurrent_users: parseInt(e.target.value) || 1,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="run-duration">Duration (seconds)</Label>
+                    <Input
+                      id="run-duration"
+                      type="number"
+                      min="1"
+                      max="3600"
+                      value={runFormData.duration_seconds}
+                      onChange={(e) =>
+                        setRunFormData({
+                          ...runFormData,
+                          duration_seconds: parseInt(e.target.value) || 60,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="run-rate-limit">Rate Limit (req/s) - Optional</Label>
+                  <Input
+                    id="run-rate-limit"
+                    type="number"
+                    min="1"
+                    value={runFormData.requests_per_second || ''}
+                    onChange={(e) =>
+                      setRunFormData({
+                        ...runFormData,
+                        requests_per_second: e.target.value ? parseInt(e.target.value) : undefined,
+                      })
+                    }
+                    placeholder="Leave empty for unlimited"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsRunDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateRun} disabled={createRun.isPending}>
+                  {createRun.isPending ? 'Starting...' : 'Start Test'}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -454,7 +450,7 @@ const LoadTestDetailsPage = () => {
                 <Card className="rounded-xl border-border/50">
                   <CardContent className="p-8 text-center">
                     <p className="text-sm text-muted-foreground">
-                      No runs yet. Click "Run Test" to start a benchmark.
+                      No runs yet. Click "Run Test" to start a load test.
                     </p>
                   </CardContent>
                 </Card>
@@ -496,6 +492,13 @@ const LoadTestDetailsPage = () => {
                                       </span>
                                     )}
                                   </div>
+                                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                                    <span>{run.concurrent_users} threads</span>
+                                    <span>{run.duration_seconds}s</span>
+                                    {run.requests_per_second && (
+                                      <span>{run.requests_per_second} req/s</span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             </div>
@@ -534,9 +537,9 @@ const LoadTestDetailsPage = () => {
                             <div className="absolute inset-0 rounded-full bg-primary/20" />
                           </div>
                           <div>
-                            <h3 className="text-lg font-semibold mb-1">Benchmark is Running</h3>
+                            <h3 className="text-lg font-semibold mb-1">Test is Running</h3>
                             <p className="text-sm text-muted-foreground max-w-md">
-                              The benchmark is currently executing. Reports and metrics will appear
+                              The load test is currently executing. Reports and metrics will appear
                               here once the run completes.
                             </p>
                           </div>

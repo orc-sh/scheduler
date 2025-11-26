@@ -6,31 +6,32 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api';
 import type {
-  CreateLoadTestConfigurationRequest,
-  LoadTestConfiguration,
-  LoadTestConfigurationWithRuns,
+  CreateCollectionRequest,
+  CreateLoadTestRunRequest,
+  CreateWebhookRequest,
+  Collection,
+  CollectionWithRuns,
   LoadTestReport,
   LoadTestReportWithResults,
   LoadTestRun,
   LoadTestRunWithReports,
-  PaginatedLoadTestConfigurationResponse,
-  UpdateLoadTestConfigurationRequest,
+  PaginatedCollectionResponse,
+  ReorderWebhooksRequest,
+  UpdateCollectionRequest,
+  UpdateWebhookRequest,
+  Webhook,
 } from '@/types/load-test.types';
 
 /**
- * Fetch all load test configurations with pagination
+ * Fetch all collections with pagination
  */
-export const useLoadTestConfigurations = (
-  page: number = 1,
-  pageSize: number = 10,
-  projectId?: string
-) => {
-  return useQuery<PaginatedLoadTestConfigurationResponse, Error>({
-    queryKey: ['load-test-configurations', page, pageSize, projectId],
+export const useCollections = (page: number = 1, pageSize: number = 10, projectId?: string) => {
+  return useQuery<PaginatedCollectionResponse, Error>({
+    queryKey: ['collections', page, pageSize, projectId],
     queryFn: async () => {
       const params: any = { page, page_size: pageSize };
       if (projectId) params.project_id = projectId;
-      const response = await api.get('/api/load-tests/configurations', { params });
+      const response = await api.get('/api/load-tests/collections', { params });
       return response.data;
     },
   });
@@ -39,28 +40,28 @@ export const useLoadTestConfigurations = (
 /**
  * Fetch a single load test configuration by ID
  */
-export const useLoadTestConfiguration = (configId: string) => {
-  return useQuery<LoadTestConfigurationWithRuns, Error>({
-    queryKey: ['load-test-configuration', configId],
+export const useCollection = (collectionId: string) => {
+  return useQuery<CollectionWithRuns, Error>({
+    queryKey: ['collection', collectionId],
     queryFn: async () => {
-      const response = await api.get(`/api/load-tests/configurations/${configId}`);
+      const response = await api.get(`/api/load-tests/collections/${collectionId}`);
       return response.data;
     },
-    enabled: !!configId,
+    enabled: !!collectionId,
   });
 };
 
 /**
  * Fetch all runs for a configuration
  */
-export const useLoadTestRuns = (configId: string) => {
+export const useLoadTestRunsByCollection = (collectionId: string) => {
   return useQuery<LoadTestRun[], Error>({
-    queryKey: ['load-test-runs', configId],
+    queryKey: ['load-test-runs', collectionId],
     queryFn: async () => {
-      const response = await api.get(`/api/load-tests/configurations/${configId}/runs`);
+      const response = await api.get(`/api/load-tests/collections/${collectionId}/runs`);
       return response.data;
     },
-    enabled: !!configId,
+    enabled: !!collectionId,
   });
 };
 
@@ -115,29 +116,29 @@ export const useLoadTestReport = (reportId: string, page: number = 1, pageSize: 
 /**
  * Create a new load test configuration
  */
-export const useCreateLoadTestConfiguration = () => {
+export const useCreateCollection = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  return useMutation<LoadTestConfiguration, Error, CreateLoadTestConfigurationRequest>({
-    mutationFn: async (data: CreateLoadTestConfigurationRequest) => {
-      const response = await api.post('/api/load-tests/configurations', data);
+  return useMutation<Collection, Error, CreateCollectionRequest>({
+    mutationFn: async (data: CreateCollectionRequest) => {
+      const response = await api.post('/api/load-tests/collections', data);
       return response.data;
     },
     onSuccess: () => {
-      // Invalidate configurations query to refetch the list
-      queryClient.invalidateQueries({ queryKey: ['load-test-configurations'] });
+      // Invalidate collections query to refetch the list
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
 
       toast({
-        title: 'Benchmark Configuration Created! 🚀',
-        description: 'Your benchmark configuration has been created successfully.',
+        title: 'Collection Created! 🚀',
+        description: 'Your webhook collection has been created successfully.',
       });
     },
     onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
       const message =
         error.response?.data?.detail || error.message || 'Failed to create benchmark configuration';
       toast({
-        title: 'Failed to Create Benchmark Configuration',
+        title: 'Failed to Create Collection',
         description: message,
         variant: 'destructive',
       });
@@ -148,26 +149,22 @@ export const useCreateLoadTestConfiguration = () => {
 /**
  * Update a load test configuration
  */
-export const useUpdateLoadTestConfiguration = () => {
+export const useUpdateCollection = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  return useMutation<
-    LoadTestConfiguration,
-    Error,
-    { id: string; data: UpdateLoadTestConfigurationRequest }
-  >({
+  return useMutation<Collection, Error, { id: string; data: UpdateCollectionRequest }>({
     mutationFn: async ({ id, data }) => {
-      const response = await api.put(`/api/load-tests/configurations/${id}`, data);
+      const response = await api.put(`/api/load-tests/collections/${id}`, data);
       return response.data;
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['load-test-configurations'] });
-      queryClient.invalidateQueries({ queryKey: ['load-test-configuration', data.id] });
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+      queryClient.invalidateQueries({ queryKey: ['collection', data.id] });
 
       toast({
-        title: 'Benchmark Configuration Updated',
-        description: 'Your benchmark configuration has been updated successfully.',
+        title: 'Collection Updated',
+        description: 'Your webhook collection has been updated successfully.',
       });
     },
     onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
@@ -185,20 +182,20 @@ export const useUpdateLoadTestConfiguration = () => {
 /**
  * Delete a load test configuration
  */
-export const useDeleteLoadTestConfiguration = () => {
+export const useDeleteCollection = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   return useMutation<void, Error, string>({
-    mutationFn: async (configId: string) => {
-      await api.delete(`/api/load-tests/configurations/${configId}`);
+    mutationFn: async (collectionId: string) => {
+      await api.delete(`/api/load-tests/collections/${collectionId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['load-test-configurations'] });
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
 
       toast({
-        title: 'Benchmark Configuration Deleted',
-        description: 'The benchmark configuration has been removed successfully.',
+        title: 'Collection Deleted',
+        description: 'The webhook collection has been removed successfully.',
       });
     },
     onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
@@ -214,32 +211,32 @@ export const useDeleteLoadTestConfiguration = () => {
 };
 
 /**
- * Create a new load test run from a configuration
+ * Create a new load test run from a collection
  */
 export const useCreateLoadTestRun = () => {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  return useMutation<LoadTestRun, Error, string>({
-    mutationFn: async (configId: string) => {
-      const response = await api.post(`/api/load-tests/configurations/${configId}/runs`);
+  return useMutation<LoadTestRun, Error, { collectionId: string; data: CreateLoadTestRunRequest }>({
+    mutationFn: async ({ collectionId, data }) => {
+      const response = await api.post(`/api/load-tests/collections/${collectionId}/runs`, data);
       return response.data;
     },
-    onSuccess: (data, configId) => {
-      queryClient.invalidateQueries({ queryKey: ['load-test-configurations'] });
-      queryClient.invalidateQueries({ queryKey: ['load-test-configuration', configId] });
-      queryClient.invalidateQueries({ queryKey: ['load-test-runs', configId] });
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+      queryClient.invalidateQueries({ queryKey: ['collection', variables.collectionId] });
+      queryClient.invalidateQueries({ queryKey: ['load-test-runs', variables.collectionId] });
       queryClient.invalidateQueries({ queryKey: ['load-test-run', data.id] });
 
       toast({
-        title: 'Benchmark Started! 🚀',
-        description: 'Your benchmark run has been created and started.',
+        title: 'Test Started! 🚀',
+        description: 'Your load test run has been created and started.',
       });
     },
     onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
-      const message = error.response?.data?.detail || error.message || 'Failed to start benchmark';
+      const message = error.response?.data?.detail || error.message || 'Failed to start test';
       toast({
-        title: 'Failed to Start Benchmark',
+        title: 'Failed to Start Test',
         description: message,
         variant: 'destructive',
       });
@@ -265,8 +262,8 @@ export const useRunLoadTest = () => {
       queryClient.invalidateQueries({ queryKey: ['load-test-reports', data.id] });
 
       toast({
-        title: 'Benchmark Started',
-        description: `Benchmark run is now running.`,
+        title: 'Test Started',
+        description: `Load test run is now running.`,
       });
     },
     onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
@@ -293,11 +290,11 @@ export const useDeleteLoadTestRun = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['load-test-runs'] });
-      queryClient.invalidateQueries({ queryKey: ['load-test-configurations'] });
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
 
       toast({
-        title: 'Benchmark Run Deleted',
-        description: 'The benchmark run has been removed successfully.',
+        title: 'Test Run Deleted',
+        description: 'The test run has been removed successfully.',
       });
     },
     onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
@@ -305,6 +302,136 @@ export const useDeleteLoadTestRun = () => {
         error.response?.data?.detail || error.message || 'Failed to delete benchmark run';
       toast({
         title: 'Delete Failed',
+        description: message,
+        variant: 'destructive',
+      });
+    },
+  });
+};
+
+/**
+ * Create a new webhook for a collection
+ */
+export const useCreateWebhook = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation<Webhook, Error, { collectionId: string; data: CreateWebhookRequest }>({
+    mutationFn: async ({ collectionId, data }) => {
+      const response = await api.post(`/api/load-tests/collections/${collectionId}/webhooks`, data);
+      return response.data;
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['collection', variables.collectionId] });
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+
+      toast({
+        title: 'Web Request Added',
+        description: 'The web request has been added to your collection.',
+      });
+    },
+    onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
+      const message =
+        error.response?.data?.detail || error.message || 'Failed to create web request';
+      toast({
+        title: 'Failed to Create Web Request',
+        description: message,
+        variant: 'destructive',
+      });
+    },
+  });
+};
+
+/**
+ * Update a webhook
+ */
+export const useUpdateWebhook = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation<Webhook, Error, { webhookId: string; data: UpdateWebhookRequest }>({
+    mutationFn: async ({ webhookId, data }) => {
+      const response = await api.put(`/api/load-tests/webhooks/${webhookId}`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+      queryClient.invalidateQueries({ queryKey: ['collection'] });
+
+      toast({
+        title: 'Web Request Updated',
+        description: 'The web request has been updated successfully.',
+      });
+    },
+    onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
+      const message =
+        error.response?.data?.detail || error.message || 'Failed to update web request';
+      toast({
+        title: 'Update Failed',
+        description: message,
+        variant: 'destructive',
+      });
+    },
+  });
+};
+
+/**
+ * Delete a webhook
+ */
+export const useDeleteWebhook = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation<void, Error, string>({
+    mutationFn: async (webhookId: string) => {
+      await api.delete(`/api/load-tests/webhooks/${webhookId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+      queryClient.invalidateQueries({ queryKey: ['collection'] });
+
+      toast({
+        title: 'Web Request Deleted',
+        description: 'The web request has been removed successfully.',
+      });
+    },
+    onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
+      const message =
+        error.response?.data?.detail || error.message || 'Failed to delete web request';
+      toast({
+        title: 'Delete Failed',
+        description: message,
+        variant: 'destructive',
+      });
+    },
+  });
+};
+
+/**
+ * Reorder webhooks for a collection
+ */
+export const useReorderWebhooks = () => {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  return useMutation<void, Error, { collectionId: string; data: ReorderWebhooksRequest }>({
+    mutationFn: async ({ collectionId, data }) => {
+      await api.patch(`/api/load-tests/collections/${collectionId}/webhooks/reorder`, data);
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['collection', variables.collectionId] });
+      queryClient.invalidateQueries({ queryKey: ['collections'] });
+
+      toast({
+        title: 'Web Requests Reordered',
+        description: 'The execution order has been updated successfully.',
+      });
+    },
+    onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
+      const message =
+        error.response?.data?.detail || error.message || 'Failed to reorder web requests';
+      toast({
+        title: 'Reorder Failed',
         description: message,
         variant: 'destructive',
       });

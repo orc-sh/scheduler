@@ -57,7 +57,7 @@ const FloatingNavbar = () => {
     },
     {
       icon: Gauge,
-      label: 'Benchmarks',
+      label: 'Collections',
       path: '/load-tests',
     },
     {

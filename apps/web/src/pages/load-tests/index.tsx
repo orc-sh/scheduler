@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useLoadTestConfigurations } from '@/hooks/use-load-tests';
+import { useCollections } from '@/hooks/use-load-tests';
 import { useProjects } from '@/hooks/use-projects';
 import { FadeIn } from '@/components/motion/fade-in';
 import { Button } from '@/components/ui/button';
@@ -15,16 +15,12 @@ const LoadTestsPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  // Fetch projects to get the first one for creating benchmarks
+  // Fetch projects to get the first one for creating collections
   const { data: projectsData } = useProjects(1, 1);
   const firstProject = projectsData?.data?.[0];
 
   // Fetch load test configurations
-  const {
-    data: configsData,
-    isLoading,
-    isError,
-  } = useLoadTestConfigurations(currentPage, pageSize);
+  const { data: configsData, isLoading, isError } = useCollections(currentPage, pageSize);
 
   const configurations = configsData?.data || [];
   const pagination = configsData?.pagination;
@@ -36,21 +32,21 @@ const LoadTestsPage = () => {
           {/* Header */}
           <div className="mb-8 flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight">Benchmarks</h1>
+              <h1 className="text-3xl font-bold tracking-tight">Collections</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Benchmark your APIs and monitor performance metrics
+                Create collections of web requests and run load tests
               </p>
             </div>
             <Button onClick={() => navigate('/load-tests/new')} disabled={!firstProject}>
               <Plus className="mr-2 h-4 w-4" />
-              New Configuration
+              New Collection
             </Button>
           </div>
 
           {/* Error State */}
           {isError && (
             <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4 text-sm text-destructive">
-              Failed to load benchmark configurations. Please try again.
+              Failed to load collections. Please try again.
             </div>
           )}
 
@@ -79,10 +75,10 @@ const LoadTestsPage = () => {
               <div className="rounded-full bg-muted/50 p-4">
                 <Gauge className="h-10 w-10 text-muted-foreground/50" />
               </div>
-              <h2 className="mt-6 text-xl font-semibold">No benchmark configurations yet</h2>
+              <h2 className="mt-6 text-xl font-semibold">No collections yet</h2>
               <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                Create a benchmark configuration to test your APIs and monitor performance metrics
-                like response times, success rates, and throughput.
+                Create a collection to group web requests together. You can then run load tests with
+                different execution parameters.
               </p>
               <Button
                 onClick={() => navigate('/load-tests/new')}
@@ -91,7 +87,7 @@ const LoadTestsPage = () => {
                 disabled={!firstProject}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Create Benchmark Configuration
+                Create Collection
               </Button>
             </div>
           )}
@@ -115,11 +111,14 @@ const LoadTestsPage = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
                             <h3 className="font-semibold text-sm text-foreground truncate">
-                              {config.name}
+                              {config.name || 'Unnamed Collection'}
                             </h3>
-                            <Badge variant="outline" className="font-mono text-xs">
-                              {config.webhook?.method || 'N/A'}
-                            </Badge>
+                            {config.webhooks && config.webhooks.length > 0 && (
+                              <Badge variant="outline" className="text-xs">
+                                {config.webhooks.length} request
+                                {config.webhooks.length !== 1 ? 's' : ''}
+                              </Badge>
+                            )}
                           </div>
                           <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                             <div className="flex items-center gap-1.5">
@@ -130,19 +129,11 @@ const LoadTestsPage = () => {
                                 })}
                               </span>
                             </div>
-                            {config.webhook && (
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <code className="truncate font-mono text-xs">
-                                  {config.webhook.url}
-                                </code>
-                              </div>
-                            )}
                             <div className="flex items-center gap-1.5">
-                              <Zap className="h-3 w-3" />
-                              <span>{config.concurrent_users} threads</span>
-                            </div>
-                            <div className="flex items-center gap-1.5">
-                              <span>{config.duration_seconds}s duration</span>
+                              <span>
+                                {config.webhooks?.length || 0} web request
+                                {(config.webhooks?.length || 0) !== 1 ? 's' : ''}
+                              </span>
                             </div>
                           </div>
                         </div>

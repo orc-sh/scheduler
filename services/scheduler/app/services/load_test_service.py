@@ -13,11 +13,11 @@ from typing import Any, Dict, List, Optional
 import httpx
 from sqlalchemy.orm import Session
 
-from app.models.load_test_configurations import LoadTestConfiguration
+from app.models.collections import Collection
 from app.models.load_test_reports import LoadTestReport
 from app.models.load_test_results import LoadTestResult
 from app.models.load_test_runs import LoadTestRun
-from app.models.webhooks import Webhook
+from app.services.webhook_service import get_webhook_service
 
 
 class LoadTestService:
@@ -32,20 +32,32 @@ class LoadTestService:
         """
         self.db = db
 
-    def create_load_test_run(self, configuration_id: str) -> LoadTestRun:
+    def create_load_test_run(
+        self,
+        collection_id: str,
+        concurrent_users: int = 10,
+        duration_seconds: int = 60,
+        requests_per_second: Optional[int] = None,
+    ) -> LoadTestRun:
         """
-        Create a new load test run from a configuration.
+        Create a new load test run from a collection.
 
         Args:
-            configuration_id: ID of the load test configuration
+            collection_id: ID of the webhook collection
+            concurrent_users: Number of concurrent users
+            duration_seconds: Duration in seconds
+            requests_per_second: Optional rate limit
 
         Returns:
             Created LoadTestRun instance
         """
         load_test_run = LoadTestRun(
             id=str(uuid.uuid4()),
-            load_test_configuration_id=configuration_id,
+            collection_id=collection_id,
             status="pending",
+            concurrent_users=concurrent_users,
+            duration_seconds=duration_seconds,
+            requests_per_second=requests_per_second,
         )
         self.db.add(load_test_run)
         self.db.commit()
@@ -64,14 +76,14 @@ class LoadTestService:
         """
         return self.db.query(LoadTestRun).filter(LoadTestRun.id == run_id).first()
 
-    def get_load_test_runs_by_configuration(
-        self, configuration_id: str, skip: int = 0, limit: int = 100
+    def get_load_test_runs_by_collection(
+        self, collection_id: str, skip: int = 0, limit: int = 100
     ) -> List[LoadTestRun]:
         """
-        Get all load test runs for a configuration.
+        Get all load test runs for a collection.
 
         Args:
-            configuration_id: ID of the configuration
+            collection_id: ID of the collection
             skip: Number of records to skip
             limit: Maximum number of records to return
 
@@ -80,12 +92,25 @@ class LoadTestService:
         """
         return (
             self.db.query(LoadTestRun)
-            .filter(LoadTestRun.load_test_configuration_id == configuration_id)
+            .filter(LoadTestRun.collection_id == collection_id)
             .order_by(LoadTestRun.created_at.desc())
             .offset(skip)
             .limit(limit)
             .all()
         )
+
+    def get_all_load_test_runs(self, skip: int = 0, limit: int = 100) -> List[LoadTestRun]:
+        """
+        Get all load test runs across all collections.
+
+        Args:
+            skip: Number of records to skip
+            limit: Maximum number of records to return
+
+        Returns:
+            List of LoadTestRun instances
+        """
+        return self.db.query(LoadTestRun).order_by(LoadTestRun.created_at.desc()).offset(skip).limit(limit).all()
 
     def delete_load_test_run(self, run_id: str) -> bool:
         """
@@ -273,14 +298,10 @@ class LoadTestService:
         if not load_test_run:
             raise ValueError(f"Load test run {run_id} not found")
 
-        # Get configuration
-        configuration = (
-            self.db.query(LoadTestConfiguration)
-            .filter(LoadTestConfiguration.id == load_test_run.load_test_configuration_id)
-            .first()
-        )
-        if not configuration:
-            raise ValueError(f"Load test configuration not found for run {run_id}")
+        # Get collection
+        collection = self.db.query(Collection).filter(Collection.id == load_test_run.collection_id).first()
+        if not collection:
+            raise ValueError(f"Collection not found for run {run_id}")
 
         # Update status to running
         load_test_run.status = "running"
@@ -288,28 +309,37 @@ class LoadTestService:
         self.db.commit()
 
         try:
-            # Get webhook configuration
-            webhook = self.db.query(Webhook).filter(Webhook.id == configuration.webhook_id).first()
-            if not webhook:
-                raise ValueError(f"Webhook with ID '{configuration.webhook_id}' not found")
+            # Get all webhooks for this collection (ordered by execution order)
+            webhook_service = get_webhook_service(self.db)
+            webhooks = webhook_service.get_webhooks_by_collection(str(collection.id))
 
-            # Build full URL with query params if present
-            full_url = webhook.url
-            if webhook.query_params:
-                from urllib.parse import urlencode
+            if not webhooks:
+                raise ValueError(f"No webhooks found for collection {collection.id}")
 
-                query_string = urlencode(webhook.query_params)
-                separator = "&" if "?" in full_url else "?"
-                full_url = f"{full_url}{separator}{query_string}"
+            # Build endpoints from all webhooks
+            endpoints_to_test = []
+            for webhook in webhooks:
+                # Build full URL with query params if present
+                full_url = webhook.url
+                if webhook.query_params:
+                    from urllib.parse import urlencode
 
-            endpoints_to_test = [
-                {
-                    "url": full_url,
-                    "method": webhook.method,
-                    "headers": webhook.headers,
-                    "body": webhook.body_template,
-                }
-            ]
+                    query_string = urlencode(webhook.query_params)
+                    separator = "&" if "?" in full_url else "?"
+                    full_url = f"{full_url}{separator}{query_string}"
+
+                endpoints_to_test.append(
+                    {
+                        "url": full_url,
+                        "method": webhook.method,
+                        "headers": webhook.headers,
+                        "body": webhook.body_template,
+                        "order": webhook.order or 0,
+                    }
+                )
+
+            # Sort by order to ensure sequential execution
+            endpoints_to_test.sort(key=lambda x: x.get("order", 0))
 
             # Create a temporary report first (will be updated with metrics)
             report = LoadTestReport(
@@ -325,9 +355,9 @@ class LoadTestService:
             # Execute load test (results will reference the report)
             results = await self._execute_load_test(
                 endpoints_to_test,
-                configuration.concurrent_users,
-                configuration.duration_seconds,
-                configuration.requests_per_second,
+                load_test_run.concurrent_users,
+                load_test_run.duration_seconds,
+                load_test_run.requests_per_second,
                 report.id,
             )
 
@@ -390,37 +420,37 @@ class LoadTestService:
             """Worker coroutine that makes requests"""
             nonlocal request_count
             while time.time() < end_time:
-                # Select endpoint (round-robin or random)
-                endpoint = endpoints[request_count % len(endpoints)]
-                request_count += 1
+                # Execute all endpoints sequentially in order (one iteration)
+                for endpoint in endpoints:
+                    request_count += 1
 
-                # Execute request
-                result_data = await self.execute_single_request(
-                    endpoint["url"],
-                    endpoint["method"],
-                    endpoint.get("headers"),
-                    endpoint.get("body"),
-                )
+                    # Execute request
+                    result_data = await self.execute_single_request(
+                        endpoint["url"],
+                        endpoint["method"],
+                        endpoint.get("headers"),
+                        endpoint.get("body"),
+                    )
 
-                # Create result record
-                result = LoadTestResult(
-                    id=str(uuid.uuid4()),
-                    load_test_report_id=report_id,
-                    endpoint_path=endpoint["url"],
-                    method=endpoint["method"],
-                    request_headers=endpoint.get("headers"),
-                    request_body=endpoint.get("body"),
-                    response_status=result_data["response_status"],
-                    response_headers=result_data["response_headers"],
-                    response_body=result_data["response_body"],
-                    response_time_ms=result_data["response_time_ms"],
-                    error_message=result_data["error_message"],
-                    is_success=1 if result_data["is_success"] else 0,
-                )
-                results.append(result)
-                self.db.add(result)
+                    # Create result record
+                    result = LoadTestResult(
+                        id=str(uuid.uuid4()),
+                        load_test_report_id=report_id,
+                        endpoint_path=endpoint["url"],
+                        method=endpoint["method"],
+                        request_headers=endpoint.get("headers"),
+                        request_body=endpoint.get("body"),
+                        response_status=result_data["response_status"],
+                        response_headers=result_data["response_headers"],
+                        response_body=result_data["response_body"],
+                        response_time_ms=result_data["response_time_ms"],
+                        error_message=result_data["error_message"],
+                        is_success=1 if result_data["is_success"] else 0,
+                    )
+                    results.append(result)
+                    self.db.add(result)
 
-                # Rate limiting
+                # Rate limiting (applied per iteration, not per request)
                 if requests_per_second:
                     await asyncio.sleep(1.0 / requests_per_second)
 

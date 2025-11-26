@@ -1,17 +1,20 @@
 """
-Service for managing load test configurations.
+Service for managing webhook collections.
+
+DEPRECATED: This service is no longer used. Use collection_service instead.
+This file is kept for reference but should not be imported or used.
 """
 
-import uuid
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.models.load_test_configurations import LoadTestConfiguration
+# LoadTestConfiguration removed - replaced by Collection
+# from app.models.load_test_configurations import LoadTestConfiguration
 
 
 class LoadTestConfigurationService:
-    """Service class for load test configuration operations"""
+    """Service class for webhook collection operations"""
 
     def __init__(self, db: Session):
         """
@@ -25,57 +28,49 @@ class LoadTestConfigurationService:
     def create_configuration(
         self,
         project_id: str,
-        webhook_id: str,
         name: str,
-        concurrent_users: int = 10,
-        duration_seconds: int = 60,
-        requests_per_second: Optional[int] = None,
-    ) -> LoadTestConfiguration:
+    ) -> Any:  # LoadTestConfiguration removed
         """
-        Create a new load test configuration.
+        Create a new webhook collection.
 
         Args:
             project_id: ID of the project
-            webhook_id: ID of the webhook configuration
-            name: Name of the load test configuration
-            concurrent_users: Number of concurrent users
-            duration_seconds: Duration in seconds
-            requests_per_second: Optional rate limit
+            name: Name of the collection (can be blank)
 
         Returns:
             Created LoadTestConfiguration instance
         """
-        configuration = LoadTestConfiguration(
-            id=str(uuid.uuid4()),
-            project_id=project_id,
-            webhook_id=webhook_id,
-            name=name,
-            concurrent_users=concurrent_users,
-            duration_seconds=duration_seconds,
-            requests_per_second=requests_per_second,
-        )
-        self.db.add(configuration)
-        self.db.commit()
-        self.db.refresh(configuration)
-        return configuration
+        # LoadTestConfiguration model removed - use Collection instead
+        # This service is deprecated - use collection_service instead
+        raise NotImplementedError("LoadTestConfigurationService is deprecated. Use CollectionService instead.")
+        # configuration = LoadTestConfiguration(
+        #     id=str(uuid.uuid4()),
+        #     project_id=project_id,
+        #     name=name,
+        # )
+        # self.db.add(configuration)
+        # self.db.commit()
+        # self.db.refresh(configuration)
+        # return configuration
 
-    def get_configuration(self, config_id: str) -> Optional[LoadTestConfiguration]:
+    def get_configuration(self, config_id: str) -> Optional[Any]:  # LoadTestConfiguration removed
         """
-        Get a load test configuration by ID.
+        Get a webhook collection by ID.
 
         Args:
-            config_id: ID of the configuration
+            config_id: ID of the collection
 
         Returns:
             LoadTestConfiguration instance if found, None otherwise
         """
-        return self.db.query(LoadTestConfiguration).filter(LoadTestConfiguration.id == config_id).first()
+        raise NotImplementedError("LoadTestConfigurationService is deprecated. Use CollectionService instead.")
+        # return self.db.query(LoadTestConfiguration).filter(LoadTestConfiguration.id == config_id).first()
 
     def get_configurations_by_project(
         self, project_id: str, skip: int = 0, limit: int = 100
-    ) -> List[LoadTestConfiguration]:
+    ) -> List[Any]:  # LoadTestConfiguration removed
         """
-        Get all load test configurations for a project.
+        Get all webhook collections for a project.
 
         Args:
             project_id: ID of the project
@@ -85,32 +80,27 @@ class LoadTestConfigurationService:
         Returns:
             List of LoadTestConfiguration instances
         """
-        return (
-            self.db.query(LoadTestConfiguration)
-            .filter(LoadTestConfiguration.project_id == project_id)
-            .order_by(LoadTestConfiguration.created_at.desc())
-            .offset(skip)
-            .limit(limit)
-            .all()
-        )
+        raise NotImplementedError("LoadTestConfigurationService is deprecated. Use CollectionService instead.")
+        # return (
+        #     self.db.query(LoadTestConfiguration)
+        #     .filter(LoadTestConfiguration.project_id == project_id)
+        #     .order_by(LoadTestConfiguration.created_at.desc())
+        #     .offset(skip)
+        #     .limit(limit)
+        #     .all()
+        # )
 
     def update_configuration(
         self,
         config_id: str,
         name: Optional[str] = None,
-        concurrent_users: Optional[int] = None,
-        duration_seconds: Optional[int] = None,
-        requests_per_second: Optional[int] = None,
-    ) -> Optional[LoadTestConfiguration]:
+    ) -> Optional[Any]:  # LoadTestConfiguration removed
         """
-        Update a load test configuration.
+        Update a webhook collection.
 
         Args:
-            config_id: ID of the configuration
+            config_id: ID of the collection
             name: New name
-            concurrent_users: New concurrent users
-            duration_seconds: New duration
-            requests_per_second: New rate limit
 
         Returns:
             Updated LoadTestConfiguration instance if found, None otherwise
@@ -121,12 +111,6 @@ class LoadTestConfigurationService:
 
         if name is not None:
             configuration.name = name
-        if concurrent_users is not None:
-            configuration.concurrent_users = concurrent_users
-        if duration_seconds is not None:
-            configuration.duration_seconds = duration_seconds
-        if requests_per_second is not None:
-            configuration.requests_per_second = requests_per_second
 
         self.db.commit()
         self.db.refresh(configuration)
@@ -134,10 +118,10 @@ class LoadTestConfigurationService:
 
     def delete_configuration(self, config_id: str) -> bool:
         """
-        Delete a load test configuration and all its runs.
+        Delete a webhook collection and all its runs.
 
         Args:
-            config_id: ID of the configuration
+            config_id: ID of the collection
 
         Returns:
             True if deleted, False if not found

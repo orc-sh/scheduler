@@ -164,17 +164,25 @@ class AuthService:
             refresh_token: The refresh token
 
         Returns:
-            Dictionary containing new access_token and refresh_token
+            Dictionary containing new access_token, refresh_token, expires_at, and user info
         """
         response = self.supabase.auth.refresh_session(refresh_token)
 
         if not response.session:
             raise ValueError("Failed to refresh token")
 
+        if not response.user:
+            raise ValueError("Failed to refresh token: No user returned")
+
         return {
             "access_token": response.session.access_token,
             "refresh_token": response.session.refresh_token,
             "expires_at": response.session.expires_at,
+            "user": {
+                "id": response.user.id,
+                "email": response.user.email,
+                "user_metadata": response.user.user_metadata,
+            },
         }
 
     async def sign_out(self, access_token: str) -> bool:
