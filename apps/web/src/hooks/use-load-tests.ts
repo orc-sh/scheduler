@@ -67,11 +67,15 @@ export const useLoadTestRuns = (configId: string) => {
 /**
  * Fetch a single load test run by ID
  */
-export const useLoadTestRun = (runId: string) => {
+export const useLoadTestRun = (runId: string, includeResults: boolean = false) => {
   return useQuery<LoadTestRunWithReports, Error>({
-    queryKey: ['load-test-run', runId],
+    queryKey: ['load-test-run', runId, includeResults],
     queryFn: async () => {
-      const response = await api.get(`/api/load-tests/runs/${runId}`);
+      const params: any = {};
+      if (includeResults) {
+        params.include_results = true;
+      }
+      const response = await api.get(`/api/load-tests/runs/${runId}`, { params });
       return response.data;
     },
     enabled: !!runId,

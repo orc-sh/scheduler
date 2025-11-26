@@ -1,26 +1,14 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useLoadTestConfigurations, useDeleteLoadTestConfiguration } from '@/hooks/use-load-tests';
+import { useLoadTestConfigurations } from '@/hooks/use-load-tests';
 import { useProjects } from '@/hooks/use-projects';
 import { FadeIn } from '@/components/motion/fade-in';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Gauge, ChevronLeft, ChevronRight, Play, Clock, Zap } from 'lucide-react';
+import { Plus, Gauge, ChevronLeft, ChevronRight, Clock, Zap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { cn } from '@/lib/utils';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
 
 const LoadTestsPage = () => {
   const navigate = useNavigate();
@@ -37,14 +25,9 @@ const LoadTestsPage = () => {
     isLoading,
     isError,
   } = useLoadTestConfigurations(currentPage, pageSize);
-  const deleteConfig = useDeleteLoadTestConfiguration();
 
   const configurations = configsData?.data || [];
   const pagination = configsData?.pagination;
-
-  const handleDelete = async (configId: string) => {
-    await deleteConfig.mutateAsync(configId);
-  };
 
   return (
     <div className="min-h-screen bg-background p-8 pl-32">
@@ -156,52 +139,13 @@ const LoadTestsPage = () => {
                             )}
                             <div className="flex items-center gap-1.5">
                               <Zap className="h-3 w-3" />
-                              <span>{config.concurrent_users} users</span>
+                              <span>{config.concurrent_users} threads</span>
                             </div>
                             <div className="flex items-center gap-1.5">
                               <span>{config.duration_seconds}s duration</span>
                             </div>
                           </div>
                         </div>
-                      </div>
-
-                      {/* Right Side - Actions */}
-                      <div
-                        className="flex items-center gap-2 flex-shrink-0"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                              }}
-                              className="h-8"
-                            >
-                              Delete
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete the
-                                benchmark configuration and all its runs and reports.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDelete(config.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
                       </div>
                     </CardContent>
                   </Card>

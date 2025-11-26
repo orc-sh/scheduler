@@ -223,7 +223,7 @@ const NewLoadTestPage = () => {
                       <div className="grid grid-cols-3 gap-3">
                         <div className="space-y-1.5">
                           <Label htmlFor="concurrent_users" className="text-xs font-medium">
-                            Concurrent Users
+                            Concurrent Threads
                           </Label>
                           <Input
                             id="concurrent_users"
@@ -505,13 +505,13 @@ const NewLoadTestPage = () => {
                     type="button"
                     variant="outline"
                     onClick={() => navigate('/load-tests')}
-                    disabled={createLoadTest.isPending}
+                    disabled={createConfig.isPending}
                     className="h-9"
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={createLoadTest.isPending} className="h-9">
-                    {createLoadTest.isPending ? (
+                  <Button type="submit" disabled={createConfig.isPending} className="h-9">
+                    {createConfig.isPending ? (
                       <>
                         <div className="h-3.5 w-3.5 border-2 border-background border-t-transparent rounded-full animate-spin mr-2" />
                         Creating...
@@ -541,10 +541,10 @@ const NewLoadTestPage = () => {
                     </p>
                     <div className="space-y-2 mt-4">
                       <p>
-                        <strong className="text-foreground">Concurrent Users:</strong>
+                        <strong className="text-foreground">Concurrent Threads:</strong>
                       </p>
                       <p className="text-xs">
-                        The number of simultaneous virtual users making requests to your API. Higher
+                        The number of simultaneous threads making requests to your API. Higher
                         values simulate more traffic but require more resources.
                       </p>
                     </div>
@@ -582,7 +582,7 @@ const NewLoadTestPage = () => {
                         <strong className="text-foreground">Best Practices:</strong>
                       </p>
                       <ul className="list-disc list-inside space-y-1 ml-2 text-xs">
-                        <li>Start with lower concurrent users</li>
+                        <li>Start with lower concurrent threads</li>
                         <li>Gradually increase load to find limits</li>
                         <li>Monitor server resources during tests</li>
                         <li>Test in staging before production</li>

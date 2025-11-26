@@ -71,7 +71,7 @@ export interface LoadTestConfigurationWithRuns extends LoadTestConfiguration {
 }
 
 export interface LoadTestRunWithReports extends LoadTestRun {
-  reports: LoadTestReport[];
+  reports: LoadTestReportWithResults[];
 }
 
 export interface LoadTestReportWithResults extends LoadTestReport {

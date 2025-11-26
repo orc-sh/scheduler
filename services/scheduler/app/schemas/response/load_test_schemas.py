@@ -111,7 +111,7 @@ class LoadTestRunWithReportsResponse(BaseModel):
     completed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
-    reports: List[LoadTestReportResponse] = Field(default_factory=list)
+    reports: List[LoadTestReportWithResultsResponse] = Field(default_factory=list)
 
 
 class LoadTestConfigurationResponse(BaseModel):

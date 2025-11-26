@@ -221,7 +221,7 @@ async def get_load_test_configurations(
             pagination=PaginationMetadata(
                 current_page=page,
                 page_size=page_size,
-                total_items=0,
+                total_entries=0,
                 total_pages=0,
                 has_next=False,
                 has_previous=False,
@@ -502,6 +502,8 @@ async def get_load_test_runs(
 @router.get("/runs/{run_id}", response_model=LoadTestRunWithReportsResponse)
 async def get_load_test_run(
     run_id: str,
+    include_results: bool = Query(False, description="Include first page of results for each report"),
+    results_page_size: int = Query(50, ge=1, le=100, description="Number of results per report"),
     user: User = Depends(get_current_user),
     db: Session = Depends(client),
 ):
@@ -510,12 +512,16 @@ async def get_load_test_run(
 
     Args:
         run_id: ID of the run
+        include_results: Whether to include first page of results for each report
+        results_page_size: Number of results to include per report (max 100)
         user: Current authenticated user
         db: Database session
 
     Returns:
-        Load test run with reports
+        Load test run with reports (optionally including results)
     """
+    from app.schemas.response.load_test_schemas import LoadTestReportWithResultsResponse, LoadTestResultResponse
+
     load_test_service = get_load_test_service(db)
     run = load_test_service.get_load_test_run(run_id)
 
@@ -545,9 +551,55 @@ async def get_load_test_run(
     # Get reports
     reports = load_test_service.get_load_test_reports_by_run(run_id, skip=0, limit=100)
 
+    if include_results:
+        # Include first page of results for each report
+        report_responses = []
+        for report in reports:
+            # Get first page of results
+            results = load_test_service.get_load_test_results(
+                report.id,
+                limit=results_page_size,
+                offset=0,
+            )
+
+            result_responses = [
+                LoadTestResultResponse(
+                    id=str(r.id),
+                    load_test_report_id=str(r.load_test_report_id),
+                    endpoint_path=r.endpoint_path,
+                    method=r.method,
+                    request_headers=r.request_headers,
+                    request_body=r.request_body,
+                    response_status=r.response_status,
+                    response_headers=r.response_headers,
+                    response_body=r.response_body,
+                    response_time_ms=r.response_time_ms,
+                    error_message=r.error_message,
+                    is_success=bool(r.is_success),
+                    created_at=r.created_at,
+                )
+                for r in results
+            ]
+
+            # Build report response with results
+            report_response = LoadTestReportWithResultsResponse(
+                **build_report_response(report).model_dump(),
+                results=result_responses,
+            )
+            report_responses.append(report_response)
+    else:
+        # Return reports without results
+        report_responses = [
+            LoadTestReportWithResultsResponse(
+                **build_report_response(report).model_dump(),
+                results=[],
+            )
+            for report in reports
+        ]
+
     return LoadTestRunWithReportsResponse(
         **build_run_response(run).model_dump(),
-        reports=[build_report_response(report) for report in reports],
+        reports=report_responses,
     )
 
 
