@@ -1,0 +1,402 @@
+"""
+URL controller for managing URL endpoints and logs.
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.orm import Session
+
+from app.middleware.auth_middleware import get_current_user
+from app.models.user import User
+from app.schemas.request.url_schemas import CreateUrlRequest, UpdateUrlRequest
+from app.schemas.response.pagination_schemas import PaginatedResponse, PaginationMetadata
+from app.schemas.response.url_schemas import UrlLogResponse, UrlResponse, UrlWithLogsResponse
+from app.services.project_service import get_project_service
+from app.services.url_service import get_url_service
+from db.client import client
+
+router = APIRouter()
+
+
+@router.post("", response_model=UrlResponse, status_code=status.HTTP_201_CREATED)
+async def create_url(
+    request: CreateUrlRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(client),
+):
+    """
+    Create a new URL for the authenticated user's project.
+
+    Args:
+        request: URL creation request with project_id
+        user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Created URL data with path
+
+    Raises:
+        HTTPException: 401 if not authenticated, 404 if project not found
+    """
+    # Verify project exists and belongs to user
+    project_service = get_project_service(db)
+    project = project_service.get_project(project_id=request.project_id, user_id=user.id)
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Project with ID '{request.project_id}' not found",
+        )
+
+    # Create URL
+    url_service = get_url_service(db)
+    url = url_service.create_url(project_id=request.project_id)
+
+    # Build response with path
+    url_dict = {
+        "id": str(url.id),
+        "project_id": str(url.project_id),
+        "unique_identifier": url.unique_identifier,
+        "path": f"/api/webhooks/{url.unique_identifier}",
+        "created_at": url.created_at,
+        "updated_at": url.updated_at,
+        "project": project,
+    }
+    return UrlResponse(**url_dict)
+
+
+@router.get("", response_model=PaginatedResponse[UrlResponse])
+async def get_urls(
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(10, ge=1, le=100, description="Number of items per page (max: 100)"),
+    project_id: str = Query(None, description="Filter by project ID"),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(client),
+):
+    """
+    Get all URLs for the authenticated user with pagination.
+
+    Args:
+        page: Page number (default: 1, min: 1)
+        page_size: Number of items per page (default: 10, max: 100)
+        project_id: Optional project ID filter
+        user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Paginated response with URLs
+
+    Raises:
+        HTTPException: 401 if not authenticated
+    """
+    url_service = get_url_service(db)
+    project_service = get_project_service(db)
+
+    # Get all user's projects
+    projects = project_service.get_projects(user.id)
+    project_ids = [str(p.id) for p in projects]
+
+    # Filter by project_id if provided
+    if project_id:
+        if project_id not in project_ids:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Project with ID '{project_id}' not found",
+            )
+        project_ids = [project_id]
+
+    # Get URLs for these projects
+    all_urls = []
+    for pid in project_ids:
+        urls = url_service.get_urls_by_project(pid)
+        all_urls.extend(urls)
+
+    # Pagination
+    total_entries = len(all_urls)
+    total_pages = (total_entries + page_size - 1) // page_size if total_entries > 0 else 1
+    page = min(page, total_pages)
+    skip = (page - 1) * page_size
+    paginated_urls = all_urls[skip : skip + page_size]
+
+    # Build responses
+    url_responses = []
+    for url in paginated_urls:
+        project = project_service.get_project(str(url.project_id), user.id)
+        url_dict = {
+            "id": str(url.id),
+            "project_id": str(url.project_id),
+            "unique_identifier": url.unique_identifier,
+            "path": f"/api/webhooks/{url.unique_identifier}",
+            "created_at": url.created_at,
+            "updated_at": url.updated_at,
+            "project": project,
+        }
+        url_responses.append(UrlResponse(**url_dict))
+
+    pagination_metadata = {
+        "current_page": page,
+        "total_pages": total_pages,
+        "total_entries": total_entries,
+        "page_size": page_size,
+        "has_next": page < total_pages,
+        "has_previous": page > 1,
+        "next_page": page + 1 if page < total_pages else None,
+        "previous_page": page - 1 if page > 1 else None,
+    }
+
+    return PaginatedResponse(
+        data=url_responses,
+        pagination=PaginationMetadata(**pagination_metadata),
+    )
+
+
+@router.get("/{url_id}", response_model=UrlResponse)
+async def get_url(
+    url_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(client),
+):
+    """
+    Get a specific URL by ID.
+
+    Args:
+        url_id: ID of the URL to retrieve
+        user: Current authenticated user
+        db: Database session
+
+    Returns:
+        URL data
+
+    Raises:
+        HTTPException: 401 if not authenticated, 404 if URL not found
+    """
+    url_service = get_url_service(db)
+    url = url_service.get_url(url_id)
+
+    if not url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"URL with ID '{url_id}' not found",
+        )
+
+    # Verify user has access through project
+    project_service = get_project_service(db)
+    project = project_service.get_project(str(url.project_id), user.id)
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to access this URL",
+        )
+
+    url_dict = {
+        "id": str(url.id),
+        "project_id": str(url.project_id),
+        "unique_identifier": url.unique_identifier,
+        "path": f"/api/webhooks/{url.unique_identifier}",
+        "created_at": url.created_at,
+        "updated_at": url.updated_at,
+        "project": project,
+    }
+    return UrlResponse(**url_dict)
+
+
+@router.get("/{url_id}/logs", response_model=UrlWithLogsResponse)
+async def get_url_logs(
+    url_id: str,
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(50, ge=1, le=100, description="Number of items per page (max: 100)"),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(client),
+):
+    """
+    Get all logs for a specific URL with pagination.
+
+    Args:
+        url_id: ID of the URL
+        page: Page number (default: 1, min: 1)
+        page_size: Number of items per page (default: 50, max: 100)
+        user: Current authenticated user
+        db: Database session
+
+    Returns:
+        URL data with logs
+
+    Raises:
+        HTTPException: 401 if not authenticated, 404 if URL not found
+    """
+    url_service = get_url_service(db)
+    url = url_service.get_url(url_id)
+
+    if not url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"URL with ID '{url_id}' not found",
+        )
+
+    # Verify user has access through project
+    project_service = get_project_service(db)
+    project = project_service.get_project(str(url.project_id), user.id)
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to access this URL",
+        )
+
+    # Get logs with pagination
+    skip = (page - 1) * page_size
+    logs = url_service.get_url_logs(url_id, limit=page_size, offset=skip)
+
+    # Build log responses
+    log_responses = [
+        UrlLogResponse(
+            id=str(log.id),
+            url_id=str(log.url_id),
+            method=log.method,
+            headers=log.headers,
+            query_params=log.query_params,
+            body=log.body,
+            response_status=log.response_status,
+            response_headers=log.response_headers,
+            response_body=log.response_body,
+            ip_address=log.ip_address,
+            user_agent=log.user_agent,
+            created_at=log.created_at,
+        )
+        for log in logs
+    ]
+
+    url_dict = {
+        "id": str(url.id),
+        "project_id": str(url.project_id),
+        "unique_identifier": url.unique_identifier,
+        "path": f"/api/webhooks/{url.unique_identifier}",
+        "created_at": url.created_at,
+        "updated_at": url.updated_at,
+        "logs": log_responses,
+    }
+    return UrlWithLogsResponse(**url_dict)
+
+
+@router.put("/{url_id}", response_model=UrlResponse)
+async def update_url(
+    url_id: str,
+    request: UpdateUrlRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(client),
+):
+    """
+    Update an existing URL.
+
+    Args:
+        url_id: ID of the URL to update
+        request: URL update request
+        user: Current authenticated user
+        db: Database session
+
+    Returns:
+        Updated URL data
+
+    Raises:
+        HTTPException: 401 if not authenticated, 404 if URL not found
+    """
+    url_service = get_url_service(db)
+    url = url_service.get_url(url_id)
+
+    if not url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"URL with ID '{url_id}' not found",
+        )
+
+    # Verify user has access through project
+    project_service = get_project_service(db)
+    project = project_service.get_project(str(url.project_id), user.id)
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to update this URL",
+        )
+
+    # If project_id is being updated, verify new project exists and belongs to user
+    if request.project_id and request.project_id != str(url.project_id):
+        new_project = project_service.get_project(project_id=request.project_id, user_id=user.id)
+        if not new_project:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Project with ID '{request.project_id}' not found",
+            )
+
+    # Update URL
+    updated_url = url_service.update_url(url_id, project_id=request.project_id)
+
+    if not updated_url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"URL with ID '{url_id}' not found",
+        )
+
+    # Get updated project
+    updated_project = project_service.get_project(str(updated_url.project_id), user.id)
+
+    url_dict = {
+        "id": str(updated_url.id),
+        "project_id": str(updated_url.project_id),
+        "unique_identifier": updated_url.unique_identifier,
+        "path": f"/books/{updated_url.unique_identifier}",
+        "created_at": updated_url.created_at,
+        "updated_at": updated_url.updated_at,
+        "project": updated_project,
+    }
+    return UrlResponse(**url_dict)
+
+
+@router.delete("/{url_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_url(
+    url_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(client),
+):
+    """
+    Delete a URL.
+
+    Args:
+        url_id: ID of the URL to delete
+        user: Current authenticated user
+        db: Database session
+
+    Returns:
+        No content on success
+
+    Raises:
+        HTTPException: 401 if not authenticated, 404 if URL not found
+    """
+    url_service = get_url_service(db)
+    url = url_service.get_url(url_id)
+
+    if not url:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"URL with ID '{url_id}' not found",
+        )
+
+    # Verify user has access through project
+    project_service = get_project_service(db)
+    project = project_service.get_project(str(url.project_id), user.id)
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to delete this URL",
+        )
+
+    deleted = url_service.delete_url(url_id)
+
+    if not deleted:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"URL with ID '{url_id}' not found",
+        )
+
+    return None

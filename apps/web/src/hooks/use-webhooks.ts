@@ -14,7 +14,7 @@ export const useWebhooks = (limit: number = 100, offset: number = 0) => {
   return useQuery<Webhook[], Error>({
     queryKey: ['webhooks', limit, offset],
     queryFn: async () => {
-      const response = await api.get('/api/webhooks', {
+      const response = await api.get('/api/schedules', {
         params: { limit, offset },
       });
       return response.data;
@@ -29,7 +29,7 @@ export const useWebhook = (webhookId: string) => {
   return useQuery<Webhook, Error>({
     queryKey: ['webhook', webhookId],
     queryFn: async () => {
-      const response = await api.get(`/api/webhooks/${webhookId}`);
+      const response = await api.get(`/api/schedules/${webhookId}`);
       return response.data;
     },
     enabled: !!webhookId,
@@ -44,7 +44,7 @@ export const useCreateWebhook = () => {
 
   return useMutation<CronWebhookResponse, Error, CreateCronWebhookRequest>({
     mutationFn: async (data: CreateCronWebhookRequest) => {
-      const response = await api.post('/api/webhooks', data);
+      const response = await api.post('/api/schedules', data);
       return response.data;
     },
     onSuccess: (data) => {
@@ -89,7 +89,7 @@ export const useUpdateWebhook = () => {
     }
   >({
     mutationFn: async ({ id, data }) => {
-      const response = await api.put(`/api/webhooks/${id}`, data);
+      const response = await api.put(`/api/schedules/${id}`, data);
       return response.data;
     },
     onSuccess: (data) => {
@@ -121,7 +121,7 @@ export const useDeleteWebhook = () => {
 
   return useMutation<void, Error, string>({
     mutationFn: async (webhookId: string) => {
-      await api.delete(`/api/webhooks/${webhookId}`);
+      await api.delete(`/api/schedules/${webhookId}`);
     },
     onSuccess: () => {
       // Invalidate webhooks query to refetch the list

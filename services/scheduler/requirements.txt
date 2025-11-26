@@ -19,3 +19,6 @@ supabase
 pyjwt
 httpx
 croniter
+pytz
+redis
+chargebee

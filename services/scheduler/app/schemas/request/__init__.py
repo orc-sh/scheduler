@@ -2,5 +2,14 @@
 # Add scheduler-specific request schemas here (e.g., CreateJobRequest, UpdateWebhookRequest, etc.)
 
 from .project_schemas import CreateProjectRequest, UpdateProjectRequest
+from .subscription_schemas import CancelSubscriptionRequest, UpdateSubscriptionRequest
+from .url_schemas import CreateUrlRequest, UpdateUrlRequest
 
-__all__ = ["CreateProjectRequest", "UpdateProjectRequest"]
+__all__ = [
+    "CreateProjectRequest",
+    "UpdateProjectRequest",
+    "UpdateSubscriptionRequest",
+    "CancelSubscriptionRequest",
+    "CreateUrlRequest",
+    "UpdateUrlRequest",
+]

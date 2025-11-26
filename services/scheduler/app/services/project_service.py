@@ -2,12 +2,15 @@
 Project service for managing CRUD operations on projects.
 """
 
+import logging
 import uuid
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.models.projects import Project
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectService:
@@ -170,13 +173,18 @@ class ProjectService:
         """
         return self.db.query(Project).filter(Project.user_id == user_id).count()
 
-    def get_or_create_project_by_name(self, user_id: str, project_name: str) -> Project:
+    def get_or_create_project_by_name(
+        self, user_id: str, project_name: str, user=None, default_plan_id: str = "free"
+    ) -> Project:
         """
         Get an existing project by name or create it if it doesn't exist.
+        Automatically creates a subscription for new projects.
 
         Args:
             user_id: ID of the user
             project_name: Name of the project to find or create
+            user: User instance (optional, needed for subscription creation)
+            default_plan_id: Default plan ID for new subscriptions (default: "free")
 
         Returns:
             Project instance (either existing or newly created)
@@ -187,6 +195,42 @@ class ProjectService:
         # If not found, create new project
         if not project:
             project = self.create_project(user_id, project_name)
+
+            # Automatically create subscription for new project
+            if user:
+                try:
+                    from app.services.subscription_service import get_subscription_service
+
+                    subscription_service = get_subscription_service(self.db)
+
+                    # Get user email for subscription
+                    customer_email = user.email or f"{user_id}@example.com"
+                    customer_first_name = None
+                    customer_last_name = None
+
+                    # Try to extract name from user metadata
+                    if user.user_metadata:
+                        if "name" in user.user_metadata:
+                            name_parts = user.user_metadata["name"].split(" ", 1)
+                            customer_first_name = name_parts[0] if len(name_parts) > 0 else None
+                            customer_last_name = name_parts[1] if len(name_parts) > 1 else None
+                        elif "full_name" in user.user_metadata:
+                            name_parts = user.user_metadata["full_name"].split(" ", 1)
+                            customer_first_name = name_parts[0] if len(name_parts) > 0 else None
+                            customer_last_name = name_parts[1] if len(name_parts) > 1 else None
+
+                    # Create subscription with default plan
+                    subscription_service.create_subscription(
+                        project_id=str(project.id),
+                        plan_id=default_plan_id,
+                        customer_email=customer_email,
+                        customer_first_name=customer_first_name,
+                        customer_last_name=customer_last_name,
+                    )
+                    logger.info(f"Created subscription for project {project.id} with plan {default_plan_id}")
+                except Exception as e:
+                    # Log error but don't fail project creation
+                    logger.error(f"Failed to create subscription for project {project.id}: {str(e)}")
 
         return project
 

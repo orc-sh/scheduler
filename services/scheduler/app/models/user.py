@@ -196,3 +196,15 @@ class User:
 
         # Last resort: use ID
         return self.id
+
+    @property
+    def tier(self) -> str:
+        """
+        Get user's subscription tier.
+
+        Returns:
+            'pro' or 'free' (defaults to 'free')
+        """
+        from app.utils.cron_validator import get_user_tier
+
+        return get_user_tier(self)
