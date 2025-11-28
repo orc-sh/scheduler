@@ -108,9 +108,9 @@ const UrlsPage = () => {
               <div className="rounded-full bg-muted/50 p-4">
                 <Globe className="h-10 w-10 text-muted-foreground/50" />
               </div>
-              <h2 className="mt-6 text-xl font-semibold">No URLs yet</h2>
+              <h2 className="mt-6 text-xl font-semibold">No endpoints yet</h2>
               <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                Create a URL endpoint to receive and log incoming requests. Similar to webhook.site,
+                Create an endpoint to receive and log incoming requests. Similar to webhook.site,
                 you can use these endpoints to test and debug webhooks.
               </p>
               <Button
@@ -120,7 +120,7 @@ const UrlsPage = () => {
                 disabled={createUrl.isPending || createProject.isPending}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Create URL
+                Create Endpoint
               </Button>
             </div>
           )}

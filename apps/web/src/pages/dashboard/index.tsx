@@ -38,7 +38,7 @@ const DashboardPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background p-8 pl-32">
+    <div className="min-h-screen bg-background p-8 pl-32 flex flex-col justify-center items-center">
       <div className="container mx-auto max-w-6xl">
         <FadeIn>
           {/* Welcome Header */}
@@ -53,7 +53,7 @@ const DashboardPage = () => {
           </div>
 
           {/* Module Cards Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             {modules.map((module) => {
               const Icon = module.icon;
               return (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useUrlLogs, useDeleteUrl } from '@/hooks/use-urls';
 import { FadeIn } from '@/components/motion/fade-in';
@@ -30,6 +30,7 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { motion, AnimatePresence } from 'motion/react';
 
 const UrlDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -45,13 +46,7 @@ const UrlDetailsPage = () => {
 
   const logs = urlData?.logs || [];
   const selectedLog = logs.find((log) => log.id === selectedLogId) || null;
-
-  // Auto-select first log when logs are loaded
-  useEffect(() => {
-    if (logs.length > 0 && !selectedLogId) {
-      setSelectedLogId(logs[0].id);
-    }
-  }, [logs, selectedLogId]);
+  const hasSelectedLog = !!selectedLogId;
 
   const handleCopy = (text: string, logId: string) => {
     navigator.clipboard.writeText(text);
@@ -206,10 +201,20 @@ const UrlDetailsPage = () => {
             </Card>
           )}
 
-          {/* Two Column Layout: Logs List (Left) and Log Details (Right) */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Animated Layout: Logs List (Left) and Log Details (Right) */}
+          <motion.div
+            className="grid gap-6 relative"
+            initial={false}
+            animate={{
+              gridTemplateColumns: hasSelectedLog ? '1fr 2fr' : '1fr',
+            }}
+            transition={{
+              duration: 0.4,
+              ease: [0.16, 1, 0.3, 1],
+            }}
+          >
             {/* Left Column: Logs List */}
-            <div className="lg:col-span-1">
+            <motion.div className="min-w-0" layout>
               <Card className="shadow-none bg-transparent border-none">
                 <CardHeader className="py-4 px-0">
                   <CardTitle>
@@ -233,7 +238,7 @@ const UrlDetailsPage = () => {
                       No requests logged yet. Send a request to {url?.path} to see logs here.
                     </div>
                   ) : (
-                    <div className="max-h-[calc(100vh-400px)] overflow-y-auto space-y-2">
+                    <div className="max-h-[calc(100vh-200px)] overflow-y-auto no-scrollbar space-y-2">
                       {logs.map((log) => (
                         <button
                           key={log.id}
@@ -242,7 +247,7 @@ const UrlDetailsPage = () => {
                             selectedLogId === log.id ? 'bg-green-800/10 border-primary' : ''
                           }`}
                         >
-                          <div className="flex items-center justify-between gap-2 mb-2">
+                          <div className="flex items-center gap-2 mb-2">
                             <div className="flex items-center gap-2">
                               <Badge
                                 className={`${getStatusColor(log.response_status)} text-white text-xs`}
@@ -271,166 +276,180 @@ const UrlDetailsPage = () => {
                   )}
                 </CardContent>
               </Card>
-            </div>
+            </motion.div>
 
             {/* Right Column: Selected Log Details */}
-            <div className="lg:col-span-2">
-              {selectedLog ? (
-                <Card className="shadow-none bg-transparent border-none">
-                  <CardHeader className="py-4 px-0">
-                    <CardTitle className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          className={`${getStatusColor(selectedLog.response_status)} text-white`}
-                        >
-                          {selectedLog.method}
-                        </Badge>
-                        <span className="text-sm text-muted-foreground font-normal truncate max-w-[300px]">
-                          {selectedLog.user_agent ? selectedLog.user_agent : 'Unknown'}
+            <AnimatePresence mode="wait">
+              {hasSelectedLog && selectedLog && (
+                <motion.div
+                  key={selectedLog.id}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{
+                    duration: 0.4,
+                    ease: [0.16, 1, 0.3, 1],
+                  }}
+                  className="min-w-0"
+                  layout
+                >
+                  <Card className="shadow-none bg-transparent border-none">
+                    <CardHeader className="py-4 px-0">
+                      <CardTitle className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            className={`${getStatusColor(selectedLog.response_status)} text-white`}
+                          >
+                            {selectedLog.method}
+                          </Badge>
+                          <span className="text-sm text-muted-foreground font-normal truncate max-w-[300px]">
+                            {selectedLog.user_agent ? selectedLog.user_agent : 'Unknown'}
+                          </span>
+                        </div>
+                        <span className="text-sm text-muted-foreground font-normal">
+                          {formatDistanceToNow(new Date(selectedLog.created_at), {
+                            addSuffix: true,
+                          })}
                         </span>
-                      </div>
-                      <span className="text-sm text-muted-foreground font-normal">
-                        {formatDistanceToNow(new Date(selectedLog.created_at), {
-                          addSuffix: true,
-                        })}
-                      </span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="bg-card rounded-lg p-4 border border-border/50">
-                    <Tabs defaultValue="headers" className="w-full">
-                      <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="headers">Headers</TabsTrigger>
-                        <TabsTrigger value="query">Query</TabsTrigger>
-                        <TabsTrigger value="body">Body</TabsTrigger>
-                        <TabsTrigger value="response">Response</TabsTrigger>
-                      </TabsList>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="bg-card rounded-lg p-4 border border-border/50">
+                      <Tabs defaultValue="query" className="w-full">
+                        <TabsList className="grid w-full grid-cols-3">
+                          <TabsTrigger value="query">Query Params</TabsTrigger>
+                          <TabsTrigger value="headers">Headers</TabsTrigger>
+                          <TabsTrigger value="other">Other Info</TabsTrigger>
+                        </TabsList>
 
-                      <TabsContent value="headers" className="mt-4">
-                        {selectedLog.headers && Object.keys(selectedLog.headers).length > 0 ? (
-                          <div className="space-y-2">
-                            {Object.entries(selectedLog.headers).map(([key, value]) => (
-                              <div
-                                key={key}
-                                className="flex items-start justify-between gap-2 p-2 rounded bg-muted/30"
-                              >
-                                <code className="text-xs break-all">
-                                  <span className="font-semibold">{key}:</span> {value}
-                                </code>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleCopy(`${key}: ${value}`, selectedLog.id)}
-                                  className="flex-shrink-0"
+                        <TabsContent value="query" className="mt-4">
+                          {selectedLog.query_params &&
+                          Object.keys(selectedLog.query_params).length > 0 ? (
+                            <div className="space-y-2">
+                              {Object.entries(selectedLog.query_params).map(([key, value]) => (
+                                <div
+                                  key={key}
+                                  className="flex items-start justify-between gap-2 p-2 rounded bg-muted/30"
                                 >
-                                  {copiedId === selectedLog.id ? (
-                                    <Check className="h-3 w-3" />
-                                  ) : (
-                                    <Copy className="h-3 w-3" />
-                                  )}
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">No headers</p>
-                        )}
-                      </TabsContent>
+                                  <code className="text-xs break-all">
+                                    <span className="font-semibold">{key}:</span> {value}
+                                  </code>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleCopy(`${key}=${value}`, selectedLog.id)}
+                                    className="flex-shrink-0"
+                                  >
+                                    {copiedId === selectedLog.id ? (
+                                      <Check className="h-3 w-3" />
+                                    ) : (
+                                      <Copy className="h-3 w-3" />
+                                    )}
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">No query parameters</p>
+                          )}
+                        </TabsContent>
 
-                      <TabsContent value="query" className="mt-4">
-                        {selectedLog.query_params &&
-                        Object.keys(selectedLog.query_params).length > 0 ? (
-                          <div className="space-y-2">
-                            {Object.entries(selectedLog.query_params).map(([key, value]) => (
-                              <div
-                                key={key}
-                                className="flex items-start justify-between gap-2 p-2 rounded bg-muted/30"
-                              >
-                                <code className="text-xs break-all">
-                                  <span className="font-semibold">{key}:</span> {value}
-                                </code>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleCopy(`${key}=${value}`, selectedLog.id)}
-                                  className="flex-shrink-0"
+                        <TabsContent value="headers" className="mt-4">
+                          {selectedLog.headers && Object.keys(selectedLog.headers).length > 0 ? (
+                            <div className="space-y-2">
+                              {Object.entries(selectedLog.headers).map(([key, value]) => (
+                                <div
+                                  key={key}
+                                  className="flex items-start justify-between gap-2 p-2 rounded bg-muted/30"
                                 >
-                                  {copiedId === selectedLog.id ? (
-                                    <Check className="h-3 w-3" />
-                                  ) : (
-                                    <Copy className="h-3 w-3" />
-                                  )}
-                                </Button>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">No query parameters</p>
-                        )}
-                      </TabsContent>
+                                  <code className="text-xs break-all">
+                                    <span className="font-semibold">{key}:</span> {value}
+                                  </code>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleCopy(`${key}: ${value}`, selectedLog.id)}
+                                    className="flex-shrink-0"
+                                  >
+                                    {copiedId === selectedLog.id ? (
+                                      <Check className="h-3 w-3" />
+                                    ) : (
+                                      <Copy className="h-3 w-3" />
+                                    )}
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">No headers</p>
+                          )}
+                        </TabsContent>
 
-                      <TabsContent value="body" className="mt-4">
-                        {selectedLog.body ? (
-                          <div className="relative">
-                            <pre className="max-h-[600px] overflow-auto rounded bg-muted p-4 text-xs">
-                              {selectedLog.body}
-                            </pre>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="absolute top-2 right-2"
-                              onClick={() => handleCopy(selectedLog.body || '', selectedLog.id)}
-                            >
-                              {copiedId === selectedLog.id ? (
-                                <Check className="h-4 w-4" />
+                        <TabsContent value="other" className="mt-4">
+                          <div className="space-y-4">
+                            {/* Body Section */}
+                            <div>
+                              <h4 className="text-sm font-semibold mb-2">Request Body</h4>
+                              {selectedLog.body ? (
+                                <div className="relative">
+                                  <pre className="max-h-[300px] overflow-auto rounded bg-muted p-4 text-xs">
+                                    {selectedLog.body}
+                                  </pre>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="absolute top-2 right-2"
+                                    onClick={() =>
+                                      handleCopy(selectedLog.body || '', selectedLog.id)
+                                    }
+                                  >
+                                    {copiedId === selectedLog.id ? (
+                                      <Check className="h-4 w-4" />
+                                    ) : (
+                                      <Copy className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </div>
                               ) : (
-                                <Copy className="h-4 w-4" />
+                                <p className="text-sm text-muted-foreground">No body</p>
                               )}
-                            </Button>
-                          </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">No body</p>
-                        )}
-                      </TabsContent>
+                            </div>
 
-                      <TabsContent value="response" className="mt-4">
-                        {selectedLog.response_body ? (
-                          <div className="relative">
-                            <pre className="max-h-[600px] overflow-auto rounded bg-muted p-4 text-xs">
-                              {selectedLog.response_body}
-                            </pre>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="absolute top-2 right-2"
-                              onClick={() =>
-                                handleCopy(selectedLog.response_body || '', selectedLog.id)
-                              }
-                            >
-                              {copiedId === selectedLog.id ? (
-                                <Check className="h-4 w-4" />
+                            {/* Response Section */}
+                            <div>
+                              <h4 className="text-sm font-semibold mb-2">Response Body</h4>
+                              {selectedLog.response_body ? (
+                                <div className="relative">
+                                  <pre className="max-h-[300px] overflow-auto rounded bg-muted p-4 text-xs">
+                                    {selectedLog.response_body}
+                                  </pre>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="absolute top-2 right-2"
+                                    onClick={() =>
+                                      handleCopy(selectedLog.response_body || '', selectedLog.id)
+                                    }
+                                  >
+                                    {copiedId === selectedLog.id ? (
+                                      <Check className="h-4 w-4" />
+                                    ) : (
+                                      <Copy className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </div>
                               ) : (
-                                <Copy className="h-4 w-4" />
+                                <p className="text-sm text-muted-foreground">No response</p>
                               )}
-                            </Button>
+                            </div>
                           </div>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">No response</p>
-                        )}
-                      </TabsContent>
-                    </Tabs>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card>
-                  <CardContent className="py-12 text-center text-muted-foreground">
-                    {logs.length === 0
-                      ? 'No logs available. Send a request to see logs here.'
-                      : 'Select a log from the list to view details'}
-                  </CardContent>
-                </Card>
+                        </TabsContent>
+                      </Tabs>
+                    </CardContent>
+                  </Card>
+                </motion.div>
               )}
-            </div>
-          </div>
+            </AnimatePresence>
+          </motion.div>
 
           {/* Delete Confirmation Dialog */}
           <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

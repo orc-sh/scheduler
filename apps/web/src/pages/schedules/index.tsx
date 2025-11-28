@@ -58,56 +58,6 @@ const SchedulesPage = () => {
     }
   };
 
-  // Empty state
-  if (!isLoading && webhooks.length === 0 && currentPage === 1) {
-    return (
-      <div className="min-h-screen bg-background p-8 pl-32">
-        <div className="container mx-auto max-w-6xl">
-          <FadeIn>
-            <div className="mb-8 flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight">Webhooks</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Manage scheduled webhook endpoints
-                </p>
-              </div>
-            </div>
-
-            {/* Empty State */}
-            <div className="mt-16 flex flex-col items-center justify-center rounded-lg border border-dashed border-muted-foreground/25 bg-muted/5 p-16 text-center">
-              <div className="rounded-full bg-muted/50 p-4">
-                <WebhookIcon className="h-10 w-10 text-muted-foreground/50" />
-              </div>
-              <h2 className="mt-6 text-xl font-semibold">No webhooks yet</h2>
-              <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                Get started by creating your first scheduled webhook. Configure endpoints, set
-                schedules, and automate your workflows.
-              </p>
-              <Button onClick={() => navigate('/schedules/new')} className="mt-6" size="lg">
-                <Plus className="mr-2 h-4 w-4" />
-                Create Webhook
-              </Button>
-              <div className="mt-8 flex items-center gap-6 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  <span>Cron scheduling</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CalendarClock className="h-4 w-4" />
-                  <span>Multiple timezones</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <WebhookIcon className="h-4 w-4" />
-                  <span>REST endpoints</span>
-                </div>
-              </div>
-            </div>
-          </FadeIn>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-background p-8 pl-32">
@@ -117,7 +67,9 @@ const SchedulesPage = () => {
             <div className="mb-8 flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold tracking-tight">Webhook Schedules</h1>
-                <p className="mt-1 text-sm text-muted-foreground">Manage your webhook schedules</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Use cron expressions to trigger your webhooks on schedule.
+                </p>
               </div>
               <div className="flex items-center gap-3">
                 <Button
@@ -159,6 +111,37 @@ const SchedulesPage = () => {
                     </CardContent>
                   </Card>
                 ))}
+              </div>
+            )}
+
+            {!isLoading && webhooks.length === 0 && (
+              <div className="mt-16 flex flex-col items-center justify-center rounded-lg border border-dashed border-muted-foreground/25 bg-muted/5 p-16 text-center">
+                <div className="rounded-full bg-muted/50 p-4">
+                  <WebhookIcon className="h-10 w-10 text-muted-foreground/50" />
+                </div>
+                <h2 className="mt-6 text-xl font-semibold">No webhooks yet</h2>
+                <p className="mt-2 max-w-md text-sm text-muted-foreground">
+                  Get started by creating your first scheduled webhook. Configure endpoints, set
+                  schedules, and automate your workflows.
+                </p>
+                <Button onClick={() => navigate('/schedules/new')} className="mt-6" size="lg">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Webhook
+                </Button>
+                <div className="mt-8 flex items-center gap-6 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    <span>Cron scheduling</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CalendarClock className="h-4 w-4" />
+                    <span>Multiple timezones</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <WebhookIcon className="h-4 w-4" />
+                    <span>REST endpoints</span>
+                  </div>
+                </div>
               </div>
             )}
 
