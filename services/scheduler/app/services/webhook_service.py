@@ -25,7 +25,6 @@ class WebhookService:
     def create_webhook(
         self,
         job_id: Optional[str] = None,
-        collection_id: Optional[str] = None,
         url: str = "",
         method: str = "POST",
         headers: Optional[Dict[str, str]] = None,
@@ -38,7 +37,6 @@ class WebhookService:
 
         Args:
             job_id: ID of the job this webhook belongs to (optional)
-            collection_id: ID of the collection (optional)
             url: URL to send the webhook to
             method: HTTP method (default: POST)
             headers: HTTP headers to include (optional)
@@ -52,7 +50,6 @@ class WebhookService:
         webhook = Webhook(
             id=str(uuid.uuid4()),
             job_id=job_id,
-            collection_id=collection_id,
             url=url,
             method=method,
             headers=headers,
@@ -88,18 +85,6 @@ class WebhookService:
             List of Webhook instances
         """
         return self.db.query(Webhook).filter(Webhook.job_id == job_id).all()
-
-    def get_webhooks_by_collection(self, collection_id: str) -> List[Webhook]:
-        """
-        Get all webhooks for a collection.
-
-        Args:
-            collection_id: ID of the collection
-
-        Returns:
-            List of Webhook instances
-        """
-        return self.db.query(Webhook).filter(Webhook.collection_id == collection_id).all()
 
     def get_all_webhooks(self, limit: Optional[int] = None, offset: int = 0) -> List[Webhook]:
         """
@@ -183,88 +168,6 @@ class WebhookService:
         self.db.delete(webhook)
         self.db.commit()
         return True
-
-    def create_webhook_for_collection(
-        self,
-        collection_id: str,
-        url: str,
-        method: str = "POST",
-        headers: Optional[Dict[str, str]] = None,
-        query_params: Optional[Dict[str, str]] = None,
-        body_template: Optional[str] = None,
-        content_type: str = "application/json",
-    ) -> Webhook:
-        """
-        Convenience method to create a webhook for a collection.
-
-        Args:
-            collection_id: ID of the collection
-            url: URL to send the webhook to
-            method: HTTP method (default: POST)
-            headers: HTTP headers to include (optional)
-            query_params: Query parameters to include (optional)
-            body_template: Template for the request body (optional)
-            content_type: Content type of the request (default: application/json)
-
-        Returns:
-            Created Webhook instance
-        """
-        return self.create_webhook(
-            collection_id=collection_id,
-            url=url,
-            method=method,
-            headers=headers,
-            query_params=query_params,
-            body_template=body_template,
-            content_type=content_type,
-        )
-
-    def update_webhook_for_collection(
-        self,
-        webhook_id: str,
-        url: Optional[str] = None,
-        method: Optional[str] = None,
-        headers: Optional[Dict[str, str]] = None,
-        query_params: Optional[Dict[str, str]] = None,
-        body_template: Optional[str] = None,
-        content_type: Optional[str] = None,
-    ) -> Optional[Webhook]:
-        """
-        Convenience method to update a webhook for a collection.
-
-        Args:
-            webhook_id: ID of the webhook to update
-            url: New URL (optional)
-            method: New HTTP method (optional)
-            headers: New headers (optional)
-            query_params: New query parameters (optional)
-            body_template: New body template (optional)
-            content_type: New content type (optional)
-
-        Returns:
-            Updated Webhook instance if found, None otherwise
-        """
-        return self.update_webhook(
-            webhook_id=webhook_id,
-            url=url,
-            method=method,
-            headers=headers,
-            query_params=query_params,
-            body_template=body_template,
-            content_type=content_type,
-        )
-
-    def delete_webhook_for_collection(self, webhook_id: str) -> bool:
-        """
-        Convenience method to delete a webhook for a collection.
-
-        Args:
-            webhook_id: ID of the webhook to delete
-
-        Returns:
-            True if webhook was deleted, False if not found
-        """
-        return self.delete_webhook(webhook_id)
 
 
 def get_webhook_service(db: Session) -> WebhookService:

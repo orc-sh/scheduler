@@ -62,11 +62,6 @@ const FloatingNavbar = () => {
       path: '/schedules',
     },
     {
-      icon: Package,
-      label: 'Collections',
-      path: '/collections',
-    },
-    {
       icon: Bell,
       label: 'Notifications',
       path: '/notifications',

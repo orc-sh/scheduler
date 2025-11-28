@@ -14,9 +14,6 @@ import AddNewPage from '@/pages/add-new';
 import EditWebhookPage from '@/pages/edit';
 import WebhookDetailsPage from '@/pages/webhook-details';
 import UrlDetailsPage from '@/pages/url-details';
-import CollectionsPage from '@/pages/collections';
-import CollectionDetailsPage from '@/pages/collections/[id]';
-import NewCollectionPage from '@/pages/collections/new';
 import NotificationsPage from '@/pages/notifications';
 import ProfilePage from '@/pages/profile';
 import NotFoundPage from '@/pages/not-found';
@@ -44,9 +41,6 @@ export const AppRouter = () => {
         <Route path="/schedules" element={<SchedulesPage />} />
         <Route path="/schedules/new" element={<AddNewPage />} />
         <Route path="/schedules/:id" element={<WebhookDetailsPage />} />
-        <Route path="/collections" element={<CollectionsPage />} />
-        <Route path="/collections/new" element={<NewCollectionPage />} />
-        <Route path="/collections/:id" element={<CollectionDetailsPage />} />
         <Route path="/edit/:id" element={<EditWebhookPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/profile" element={<ProfilePage />} />

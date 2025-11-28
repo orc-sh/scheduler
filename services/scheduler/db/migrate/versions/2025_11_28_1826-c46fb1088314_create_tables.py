@@ -1,8 +1,8 @@
-"""Add tables
+"""create tables
 
-Revision ID: e32c93d71285
+Revision ID: c46fb1088314
 Revises:
-Create Date: 2025-11-27 10:21:27.580524
+Create Date: 2025-11-28 18:26:08.819994
 
 """
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "e32c93d71285"
+revision: str = "c46fb1088314"
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -29,19 +29,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index("idx_projects_user_id", "projects", ["user_id"], unique=False)
-    op.create_table(
-        "collections",
-        sa.Column("id", sa.String(length=36), nullable=False),
-        sa.Column("project_id", sa.String(length=36), nullable=False),
-        sa.Column("name", sa.String(length=255), nullable=True),
-        sa.Column("description", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.TIMESTAMP(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=True),
-        sa.Column("updated_at", sa.TIMESTAMP(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=True),
-        sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index("idx_collections_created_at", "collections", ["created_at"], unique=False)
-    op.create_index("idx_collections_project_id", "collections", ["project_id"], unique=False)
     op.create_table(
         "jobs",
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -120,24 +107,6 @@ def upgrade() -> None:
     op.create_index("idx_urls_unique_identifier", "urls", ["unique_identifier"], unique=False)
     op.create_index(op.f("ix_urls_unique_identifier"), "urls", ["unique_identifier"], unique=True)
     op.create_table(
-        "collection_runs",
-        sa.Column("id", sa.String(length=36), nullable=False),
-        sa.Column("collection_id", sa.String(length=36), nullable=False),
-        sa.Column("status", sa.String(length=50), nullable=False),
-        sa.Column("concurrent_users", sa.Integer(), nullable=False),
-        sa.Column("duration_seconds", sa.Integer(), nullable=False),
-        sa.Column("requests_per_second", sa.Integer(), nullable=True),
-        sa.Column("started_at", sa.TIMESTAMP(), nullable=True),
-        sa.Column("completed_at", sa.TIMESTAMP(), nullable=True),
-        sa.Column("created_at", sa.TIMESTAMP(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=True),
-        sa.Column("updated_at", sa.TIMESTAMP(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=True),
-        sa.ForeignKeyConstraint(["collection_id"], ["collections.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index("idx_collection_runs_collection_id", "collection_runs", ["collection_id"], unique=False)
-    op.create_index("idx_collection_runs_created_at", "collection_runs", ["created_at"], unique=False)
-    op.create_index("idx_collection_runs_status", "collection_runs", ["status"], unique=False)
-    op.create_table(
         "job_executions",
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("job_id", sa.String(length=36), nullable=False),
@@ -187,7 +156,6 @@ def upgrade() -> None:
         "webhooks",
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("job_id", sa.String(length=36), nullable=True),
-        sa.Column("collection_id", sa.String(length=36), nullable=True),
         sa.Column("url", sa.String(length=1024), nullable=False),
         sa.Column(
             "method",
@@ -199,36 +167,12 @@ def upgrade() -> None:
         sa.Column("query_params", sa.JSON(), nullable=True),
         sa.Column("body_template", sa.Text(), nullable=True),
         sa.Column("content_type", sa.String(length=100), server_default="application/json", nullable=True),
-        sa.Column("order", sa.Integer(), nullable=True),
         sa.Column("created_at", sa.TIMESTAMP(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=True),
         sa.Column("updated_at", sa.TIMESTAMP(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=True),
-        sa.ForeignKeyConstraint(["collection_id"], ["collections.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["job_id"], ["jobs.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
-    op.create_index("idx_webhooks_collection_id", "webhooks", ["collection_id"], unique=False)
     op.create_index("idx_webhooks_job_id", "webhooks", ["job_id"], unique=False)
-    op.create_table(
-        "collection_reports",
-        sa.Column("id", sa.String(length=36), nullable=False),
-        sa.Column("collection_run_id", sa.String(length=36), nullable=False),
-        sa.Column("name", sa.String(length=255), nullable=True),
-        sa.Column("total_requests", sa.Integer(), nullable=False),
-        sa.Column("successful_requests", sa.Integer(), nullable=False),
-        sa.Column("failed_requests", sa.Integer(), nullable=False),
-        sa.Column("avg_response_time_ms", sa.Integer(), nullable=True),
-        sa.Column("min_response_time_ms", sa.Integer(), nullable=True),
-        sa.Column("max_response_time_ms", sa.Integer(), nullable=True),
-        sa.Column("p95_response_time_ms", sa.Integer(), nullable=True),
-        sa.Column("p99_response_time_ms", sa.Integer(), nullable=True),
-        sa.Column("notes", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.TIMESTAMP(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=True),
-        sa.Column("updated_at", sa.TIMESTAMP(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=True),
-        sa.ForeignKeyConstraint(["collection_run_id"], ["collection_runs.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index("idx_collection_reports_created_at", "collection_reports", ["created_at"], unique=False)
-    op.create_index("idx_collection_reports_run_id", "collection_reports", ["collection_run_id"], unique=False)
     op.create_table(
         "webhook_results",
         sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
@@ -252,44 +196,15 @@ def upgrade() -> None:
     )
     op.create_index("idx_webhook_results_job_execution_id", "webhook_results", ["job_execution_id"], unique=False)
     op.create_index("idx_webhook_results_webhook_id", "webhook_results", ["webhook_id"], unique=False)
-    op.create_table(
-        "collection_results",
-        sa.Column("id", sa.String(length=36), nullable=False),
-        sa.Column("collection_report_id", sa.String(length=36), nullable=False),
-        sa.Column("endpoint_path", sa.String(length=512), nullable=False),
-        sa.Column("method", sa.String(length=10), nullable=False),
-        sa.Column("request_headers", sa.JSON(), nullable=True),
-        sa.Column("request_body", sa.Text(), nullable=True),
-        sa.Column("response_status", sa.Integer(), nullable=True),
-        sa.Column("response_headers", sa.JSON(), nullable=True),
-        sa.Column("response_body", sa.Text(), nullable=True),
-        sa.Column("response_time_ms", sa.Integer(), nullable=False),
-        sa.Column("error_message", sa.Text(), nullable=True),
-        sa.Column("is_success", sa.Integer(), nullable=False),
-        sa.Column("created_at", sa.TIMESTAMP(), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=True),
-        sa.ForeignKeyConstraint(["collection_report_id"], ["collection_reports.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index("idx_collection_results_created_at", "collection_results", ["created_at"], unique=False)
-    op.create_index("idx_collection_results_is_success", "collection_results", ["is_success"], unique=False)
-    op.create_index("idx_collection_results_report_id", "collection_results", ["collection_report_id"], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_index("idx_collection_results_report_id", table_name="collection_results")
-    op.drop_index("idx_collection_results_is_success", table_name="collection_results")
-    op.drop_index("idx_collection_results_created_at", table_name="collection_results")
-    op.drop_table("collection_results")
     op.drop_index("idx_webhook_results_webhook_id", table_name="webhook_results")
     op.drop_index("idx_webhook_results_job_execution_id", table_name="webhook_results")
     op.drop_table("webhook_results")
-    op.drop_index("idx_collection_reports_run_id", table_name="collection_reports")
-    op.drop_index("idx_collection_reports_created_at", table_name="collection_reports")
-    op.drop_table("collection_reports")
     op.drop_index("idx_webhooks_job_id", table_name="webhooks")
-    op.drop_index("idx_webhooks_collection_id", table_name="webhooks")
     op.drop_table("webhooks")
     op.drop_index("idx_url_logs_url_id", table_name="url_logs")
     op.drop_index("idx_url_logs_created_at", table_name="url_logs")
@@ -298,10 +213,6 @@ def downgrade() -> None:
     op.drop_index("idx_job_executions_job_id", table_name="job_executions")
     op.drop_index("idx_job_executions_created_at", table_name="job_executions")
     op.drop_table("job_executions")
-    op.drop_index("idx_collection_runs_status", table_name="collection_runs")
-    op.drop_index("idx_collection_runs_created_at", table_name="collection_runs")
-    op.drop_index("idx_collection_runs_collection_id", table_name="collection_runs")
-    op.drop_table("collection_runs")
     op.drop_index(op.f("ix_urls_unique_identifier"), table_name="urls")
     op.drop_index("idx_urls_unique_identifier", table_name="urls")
     op.drop_index("idx_urls_project_id", table_name="urls")
@@ -318,9 +229,6 @@ def downgrade() -> None:
     op.drop_index("idx_jobs_next_run_at", table_name="jobs")
     op.drop_index("idx_jobs_enabled", table_name="jobs")
     op.drop_table("jobs")
-    op.drop_index("idx_collections_project_id", table_name="collections")
-    op.drop_index("idx_collections_created_at", table_name="collections")
-    op.drop_table("collections")
     op.drop_index("idx_projects_user_id", table_name="projects")
     op.drop_table("projects")
     # ### end Alembic commands ###

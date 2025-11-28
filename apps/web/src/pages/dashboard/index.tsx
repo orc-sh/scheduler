@@ -28,14 +28,6 @@ const DashboardPage = () => {
       bgColor: 'bg-green-500/10',
     },
     {
-      icon: Package,
-      title: 'Collections',
-      description: 'Organize and run load tests on web requests',
-      path: '/collections',
-      color: 'text-green-500',
-      bgColor: 'bg-green-500/10',
-    },
-    {
       icon: Hammer,
       title: 'Cron Builder',
       description: 'Build and test cron expressions',
@@ -56,7 +48,7 @@ const DashboardPage = () => {
               <span className="text-primary text-4xl font-bold font-poppins">hookiee</span>.site
             </h1>
             <p className="text-sm text-muted-foreground max-w-2xl">
-              Manage your endpoints, schedules, collections, and cron expressions all in one place.
+              Manage your endpoints, schedules, and cron expressions all in one place.
             </p>
           </div>
 
