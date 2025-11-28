@@ -444,12 +444,8 @@ class CollectionService:
                         "method": webhook.method,
                         "headers": webhook.headers,
                         "body": webhook.body_template,
-                        "order": webhook.order or 0,
                     }
                 )
-
-            # Sort by order to ensure sequential execution
-            endpoints_to_test.sort(key=lambda x: x.get("order", 0))
 
             # Create a temporary report first (will be updated with metrics)
             report = CollectionReport(

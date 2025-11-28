@@ -19,6 +19,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Globe,
+  Hammer,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -119,9 +120,17 @@ const SchedulesPage = () => {
                 <p className="mt-1 text-sm text-muted-foreground">Manage your webhook schedules</p>
               </div>
               <div className="flex items-center gap-3">
-                <Button onClick={() => navigate('/add-new')} className="gap-2">
-                  <Plus className="h-4 w-4" />
-                  Create Schedule
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => navigate('/cron-builder')}
+                  className="gap-2"
+                >
+                  <Hammer className="h-4 w-4" />
+                  Expression Builder
+                </Button>
+                <Button size="sm" onClick={() => navigate('/add-new')} className="w-20 gap-2">
+                  Create
                 </Button>
               </div>
             </div>

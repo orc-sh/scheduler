@@ -221,7 +221,7 @@ const EditWebhookPage = () => {
       });
 
       // Redirect to dashboard after success
-      setTimeout(() => navigate('/dashboard'), 1500);
+      setTimeout(() => navigate('/'), 1500);
     } catch (error) {
       console.error('Failed to update webhook:', error);
     }
@@ -263,7 +263,7 @@ const EditWebhookPage = () => {
               <p className="text-sm text-muted-foreground mb-4">
                 The webhook you're trying to edit could not be found.
               </p>
-              <Button onClick={() => navigate('/dashboard')}>Return to Dashboard</Button>
+              <Button onClick={() => navigate('/')}>Return to Dashboard</Button>
             </div>
           </FadeIn>
         </div>
@@ -669,7 +669,7 @@ const EditWebhookPage = () => {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => navigate('/dashboard')}
+                      onClick={() => navigate('/')}
                       disabled={isSubmitting}
                       className="h-9"
                     >

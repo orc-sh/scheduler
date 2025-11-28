@@ -174,7 +174,7 @@ const WebhookDetailsPage = () => {
     if (id) {
       deleteWebhook.mutate(id, {
         onSuccess: () => {
-          navigate('/dashboard');
+          navigate('/');
         },
       });
     }
@@ -209,7 +209,7 @@ const WebhookDetailsPage = () => {
               <p className="text-sm text-muted-foreground mb-4">
                 The webhook you're looking for could not be found.
               </p>
-              <Button onClick={() => navigate('/dashboard')}>Return to Dashboard</Button>
+              <Button onClick={() => navigate('/')}>Return to Dashboard</Button>
             </div>
           </FadeIn>
         </div>

@@ -8,6 +8,7 @@ import ResetPasswordPage from '@/pages/reset-password';
 import AuthCallbackPage from '@/pages/auth-callback';
 import CronBuilderPage from '@/pages/cron-builder';
 import DashboardPage from '@/pages/dashboard';
+import UrlsPage from '@/pages/urls';
 import SchedulesPage from '@/pages/schedules';
 import AddNewPage from '@/pages/add-new';
 import EditWebhookPage from '@/pages/edit';
@@ -37,7 +38,8 @@ export const AppRouter = () => {
 
       {/* Protected routes */}
       <Route element={<ProtectedRoute />}>
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/" element={<DashboardPage />} />
+        <Route path="/urls" element={<UrlsPage />} />
         <Route path="/schedules" element={<SchedulesPage />} />
         <Route path="/add-new" element={<AddNewPage />} />
         <Route path="/webhooks/:id" element={<WebhookDetailsPage />} />
@@ -50,11 +52,11 @@ export const AppRouter = () => {
         <Route path="/profile" element={<ProfilePage />} />
       </Route>
 
-      {/* Redirect root to dashboard */}
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
       {/* Catch all - 404 Not Found */}
-      <Route path="*" element={<NotFoundPage />} />
+      <Route path="/404" element={<NotFoundPage />} />
+
+      {/* Redirect root to dashboard */}
+      <Route path="*" element={<Navigate to="/404" replace />} />
     </Routes>
   );
 };

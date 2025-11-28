@@ -20,7 +20,6 @@ class WebhookResponse(BaseModel):
     query_params: Optional[dict] = None
     body_template: Optional[str] = None
     content_type: Optional[str] = None
-    order: Optional[int] = None
 
 
 class CollectionResultResponse(BaseModel):

@@ -16,7 +16,16 @@ const AppContent = () => {
     '/reset-password',
     '/auth/callback',
   ];
-  const shouldShowNavbar = !publicRoutes.includes(location.pathname);
+
+  // Hide navbar on specific module pages
+  const hiddenNavbarRoutes = ['/404'];
+
+  // Check if current path matches or starts with hidden routes (for subpaths like /urls/:id)
+  const isHiddenRoute = hiddenNavbarRoutes.some(
+    (route) => location.pathname === route || location.pathname.startsWith(`${route}/`)
+  );
+
+  const shouldShowNavbar = !publicRoutes.includes(location.pathname) && !isHiddenRoute;
 
   return (
     <>

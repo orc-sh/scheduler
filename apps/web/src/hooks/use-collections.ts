@@ -16,7 +16,6 @@ import type {
   CollectionRun,
   CollectionRunWithReports,
   PaginatedCollectionResponse,
-  ReorderWebhooksRequest,
   UpdateCollectionRequest,
   UpdateWebhookRequest,
   Webhook,
@@ -404,38 +403,6 @@ export const useDeleteWebhook = () => {
         error.response?.data?.detail || error.message || 'Failed to delete web request';
       toast({
         title: 'Delete Failed',
-        description: message,
-        variant: 'destructive',
-      });
-    },
-  });
-};
-
-/**
- * Reorder webhooks for a collection
- */
-export const useReorderWebhooks = () => {
-  const queryClient = useQueryClient();
-  const { toast } = useToast();
-
-  return useMutation<void, Error, { collectionId: string; data: ReorderWebhooksRequest }>({
-    mutationFn: async ({ collectionId, data }) => {
-      await api.patch(`/api/collections/${collectionId}/webhooks/reorder`, data);
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['collection', variables.collectionId] });
-      queryClient.invalidateQueries({ queryKey: ['collections'] });
-
-      toast({
-        title: 'Web Requests Reordered',
-        description: 'The execution order has been updated successfully.',
-      });
-    },
-    onError: (error: Error & { response?: { data?: { detail?: string } } }) => {
-      const message =
-        error.response?.data?.detail || error.message || 'Failed to reorder web requests';
-      toast({
-        title: 'Reorder Failed',
         description: message,
         variant: 'destructive',
       });

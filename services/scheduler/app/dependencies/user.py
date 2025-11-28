@@ -56,7 +56,7 @@ def require_user_from_context() -> User:
 
         router = APIRouter()
 
-        @router.get("/dashboard")
+        @router.get("/")
         async def get_dashboard(user: User = Depends(require_user_from_context)):
             # This endpoint requires authentication
             return {"user_id": user.id, "email": user.email}

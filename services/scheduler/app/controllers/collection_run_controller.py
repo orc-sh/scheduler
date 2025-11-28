@@ -18,7 +18,6 @@ from app.schemas.request.collection_schemas import (
     CreateCollectionRequest,
     CreateCollectionRunRequest,
     CreateWebhookRequest,
-    ReorderWebhooksRequest,
     UpdateCollectionRequest,
     UpdateWebhookRequest,
 )
@@ -50,7 +49,6 @@ def build_webhook_response(webhook: Webhook) -> WebhookResponse:
         query_params=webhook.query_params,
         body_template=webhook.body_template,
         content_type=webhook.content_type,
-        order=webhook.order,
     )
 
 
@@ -902,7 +900,6 @@ async def create_webhook(
         query_params=request.query_params,
         body_template=request.body_template,
         content_type=request.content_type or "application/json",
-        order=request.order,
     )
 
     return build_webhook_response(webhook)
@@ -958,7 +955,6 @@ async def update_webhook(
         query_params=request.query_params,
         body_template=request.body_template,
         content_type=request.content_type,
-        order=request.order,
     )
 
     if not updated_webhook:
@@ -1007,48 +1003,3 @@ async def delete_webhook(
                 )
 
     webhook_service.delete_webhook(webhook_id)
-
-
-@router.patch("/collections/{collection_id}/webhooks/reorder", status_code=status.HTTP_204_NO_CONTENT)
-async def reorder_webhooks(
-    collection_id: str,
-    request: ReorderWebhooksRequest,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(client),
-):
-    """
-    Reorder webhooks for a collection.
-
-    Args:
-        collection_id: ID of the collection
-        request: Reorder request with webhook IDs in desired order
-        user: Current authenticated user
-        db: Database session
-    """
-    # Verify collection exists and user has access
-    collection_service = get_collection_service(db)
-    collection = collection_service.get_collection(collection_id)
-
-    if not collection:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Collection with ID '{collection_id}' not found",
-        )
-
-    project_service = get_project_service(db)
-    project = project_service.get_project(str(collection.project_id), user.id)
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to access this collection",
-        )
-
-    # Reorder webhooks
-    webhook_service = get_webhook_service(db)
-    success = webhook_service.reorder_webhooks(collection_id, request.webhook_ids)
-
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Failed to reorder webhooks. Ensure all webhook IDs belong to this collection.",
-        )

@@ -93,7 +93,7 @@ export const useEmailPasswordSignup = () => {
         setUser(data.user);
         queryClient.invalidateQueries({ queryKey: ['currentUser'] });
         // Redirect to dashboard if tokens are valid
-        window.location.href = '/dashboard';
+        window.location.href = '/';
       } else {
         // Email confirmation required - clear auth and show success message on same page
         clearAuth();

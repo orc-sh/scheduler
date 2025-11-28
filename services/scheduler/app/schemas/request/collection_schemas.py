@@ -2,7 +2,7 @@
 Request schemas for collection operations.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -79,7 +79,6 @@ class CreateWebhookRequest(BaseModel):
                 "url": "https://api.example.com/api/users",
                 "method": "GET",
                 "headers": {"Authorization": "Bearer token"},
-                "order": 0,
             }
         }
     )
@@ -90,7 +89,6 @@ class CreateWebhookRequest(BaseModel):
     query_params: Optional[Dict[str, Any]] = Field(None, description="Query parameters")
     body_template: Optional[str] = Field(None, description="Request body template")
     content_type: Optional[str] = Field(None, description="Content type (default: application/json)", max_length=100)
-    order: Optional[int] = Field(None, description="Execution order (lower numbers execute first)")
 
 
 class UpdateWebhookRequest(BaseModel):
@@ -101,7 +99,6 @@ class UpdateWebhookRequest(BaseModel):
             "example": {
                 "url": "https://api.example.com/api/users",
                 "method": "POST",
-                "order": 1,
             }
         }
     )
@@ -112,10 +109,3 @@ class UpdateWebhookRequest(BaseModel):
     query_params: Optional[Dict[str, Any]] = Field(None, description="Query parameters")
     body_template: Optional[str] = Field(None, description="Request body template")
     content_type: Optional[str] = Field(None, description="Content type", max_length=100)
-    order: Optional[int] = Field(None, description="Execution order (lower numbers execute first)")
-
-
-class ReorderWebhooksRequest(BaseModel):
-    """Schema for reordering webhooks in a collection"""
-
-    webhook_ids: List[str] = Field(..., description="List of webhook IDs in desired order")

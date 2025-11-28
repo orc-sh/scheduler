@@ -49,7 +49,6 @@ export const WebRequestForm = ({
   );
   const [bodyTemplate, setBodyTemplate] = useState(webhook?.body_template || '');
   const [contentType, setContentType] = useState(webhook?.content_type || 'application/json');
-  const [order, setOrder] = useState(webhook?.order?.toString() || '');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,7 +81,6 @@ export const WebRequestForm = ({
       query_params: parsedQueryParams,
       body_template: bodyTemplate || undefined,
       content_type: contentType,
-      order: order ? parseInt(order, 10) : undefined,
     };
 
     if (webhook) {
@@ -99,7 +97,6 @@ export const WebRequestForm = ({
     setQueryParams('');
     setBodyTemplate('');
     setContentType('application/json');
-    setOrder('');
   };
 
   const isLoading = createWebhook.isPending || updateWebhook.isPending;
@@ -114,36 +111,20 @@ export const WebRequestForm = ({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="method">HTTP Method</Label>
-              <Select value={method} onValueChange={setMethod}>
-                <SelectTrigger id="method">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {HTTP_METHODS.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="order">Execution Order</Label>
-              <Input
-                id="order"
-                type="number"
-                value={order}
-                onChange={(e) => setOrder(e.target.value)}
-                placeholder="0"
-                min="0"
-              />
-              <p className="text-xs text-muted-foreground">
-                Lower numbers execute first. Leave empty for auto-assignment.
-              </p>
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="method">HTTP Method</Label>
+            <Select value={method} onValueChange={setMethod}>
+              <SelectTrigger id="method">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {HTTP_METHODS.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">

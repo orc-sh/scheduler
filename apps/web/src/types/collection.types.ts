@@ -10,7 +10,6 @@ export interface Webhook {
   query_params?: Record<string, string>;
   body_template?: string;
   content_type?: string;
-  order?: number;
 }
 
 export interface Collection {
@@ -95,7 +94,6 @@ export interface CreateWebhookRequest {
   query_params?: Record<string, string>;
   body_template?: string;
   content_type?: string;
-  order?: number;
 }
 
 export interface UpdateWebhookRequest {
@@ -105,11 +103,6 @@ export interface UpdateWebhookRequest {
   query_params?: Record<string, string>;
   body_template?: string;
   content_type?: string;
-  order?: number;
-}
-
-export interface ReorderWebhooksRequest {
-  webhook_ids: string[];
 }
 
 export interface UpdateCollectionRequest {

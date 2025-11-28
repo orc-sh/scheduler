@@ -16,7 +16,7 @@ const AuthCallbackPage = () => {
   // Navigate to dashboard once authentication is confirmed
   useEffect(() => {
     if (isAuthenticated && hasProcessedCallback.current && !error) {
-      navigate('/dashboard', { replace: true });
+      navigate('/', { replace: true });
     }
   }, [isAuthenticated, navigate, error]);
 

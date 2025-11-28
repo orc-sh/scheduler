@@ -8,7 +8,7 @@ const NotFoundPage = () => {
   const navigate = useNavigate();
 
   const handleGoHome = () => {
-    navigate('/dashboard');
+    navigate('/');
   };
 
   const handleGoBack = () => {

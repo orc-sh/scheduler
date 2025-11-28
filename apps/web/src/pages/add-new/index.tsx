@@ -190,7 +190,7 @@ const AddNewPage = () => {
       });
 
       // Redirect to dashboard after success
-      setTimeout(() => navigate('/dashboard'), 1500);
+      setTimeout(() => navigate('/'), 1500);
     } catch (error) {
       console.error('Failed to create webhook:', error);
     }
@@ -606,7 +606,7 @@ const AddNewPage = () => {
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => navigate('/dashboard')}
+                      onClick={() => navigate('/')}
                       disabled={isSubmitting}
                       className="h-9"
                     >

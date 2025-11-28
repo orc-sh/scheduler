@@ -16,7 +16,7 @@ export default function CronBuilderPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialValue = searchParams.get('value') || '';
-  const returnUrl = searchParams.get('return') || '/dashboard';
+  const returnUrl = searchParams.get('return') || '/';
 
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { mutate: loginWithOAuth, isPending: isLoginPending, variables } = useOAuthLogin();
