@@ -5,7 +5,6 @@ This middleware fetches the user from the token (via auth middleware) and
 gets or creates a account for that user, setting it in the thread context.
 """
 
-import logging
 from typing import Optional
 
 from fastapi import Depends, HTTPException, Query, Request, status
@@ -13,13 +12,14 @@ from sqlalchemy.orm import Session
 
 from app.context.account_context import set_current_account_context
 from app.context.user_context import get_current_user_context
+from app.logging.context_logger import get_logger
 from app.middleware.auth_middleware import get_current_user
 from app.models.accounts import Account
 from app.models.user import User
 from app.services.account_service import get_account_service
 from db.client import client
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 async def get_current_account(

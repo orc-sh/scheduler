@@ -5,14 +5,14 @@ This client handles all direct Chargebee API interactions, similar to how
 AuthServiceClient handles communication with the auth service.
 """
 
-import logging
 from typing import Dict, Optional
 
 from chargebee import Chargebee  # noqa: F401
 
+from app.logging.context_logger import get_logger
 from config.environment import get_chargebee_api_key, get_chargebee_site
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SubscriptionClient:

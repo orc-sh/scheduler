@@ -6,41 +6,31 @@ from datetime import datetime
 from typing import Optional
 
 from croniter import croniter
+from sqlalchemy.orm.session import Session
+from sqlalchemy.sql import select
+
+import app.models as models
+from app.logging.context_logger import get_logger
 
 # Minimum intervals in seconds
 FREE_TIER_MIN_INTERVAL = 5 * 60  # 5 minutes
 PRO_TIER_MIN_INTERVAL = 5  # 5 seconds
 
+logger = get_logger(__name__)
 
-def get_user_tier(user) -> str:
+
+def get_account_tier(db: Session, account_id: str) -> str:
     """
-    Get user tier from user metadata.
-
-    Checks app_metadata first, then user_metadata for 'tier' or 'plan' field.
-    Defaults to 'free' if not found.
-
-    Args:
-        user: User instance with app_metadata and user_metadata
+    Get account tier from account context.
 
     Returns:
         'pro' or 'free'
     """
-    if not user:
-        return "free"
-
-    # Check app_metadata first (typically set by admin/system)
-    if user.app_metadata:
-        tier = user.app_metadata.get("tier") or user.app_metadata.get("plan")
-        if tier:
-            return tier.lower()
-
-    # Check user_metadata
-    if user.user_metadata:
-        tier = user.user_metadata.get("tier") or user.user_metadata.get("plan")
-        if tier:
-            return tier.lower()
-
-    # Default to free tier
+    subscription = db.execute(
+        select(models.Subscription).where(models.Subscription.account_id == account_id)
+    ).scalar_one_or_none()
+    if subscription and subscription.plan_id.lower().startswith("pro"):
+        return "pro"
     return "free"
 
 
@@ -55,7 +45,7 @@ def get_minimum_interval_for_tier(tier: str) -> int:
         Minimum interval in seconds
     """
     tier_lower = tier.lower()
-    if tier_lower == "pro":
+    if tier_lower.startswith("pro"):
         return PRO_TIER_MIN_INTERVAL
     return FREE_TIER_MIN_INTERVAL
 
@@ -64,8 +54,9 @@ def calculate_min_interval_from_cron(cron_expr: str, base_time: Optional[datetim
     """
     Calculate the minimum interval between executions for a cron expression.
 
-    This function calculates the minimum time between consecutive executions
-    by checking the next several execution times and finding the smallest gap.
+    This function first tries to parse the interval directly from the cron expression
+    (for simple patterns like */N), then falls back to calculating intervals by
+    checking execution times.
 
     Args:
         cron_expr: Cron expression string
@@ -77,6 +68,31 @@ def calculate_min_interval_from_cron(cron_expr: str, base_time: Optional[datetim
     Raises:
         ValueError: If cron expression is invalid
     """
+    # Normalize the cron expression (strip whitespace)
+    cron_expr = cron_expr.strip()
+
+    # Split the cron expression into fields
+    fields = cron_expr.split()
+
+    # For 6-field cron expressions (with seconds), check the seconds field first
+    if len(fields) == 6:
+        seconds_field = fields[0]
+
+        # Check if it's a simple interval pattern like */N
+        if seconds_field.startswith("*/"):
+            try:
+                interval = int(seconds_field[2:])
+                if interval > 0:
+                    return interval
+            except ValueError:
+                pass  # Fall through to execution-based calculation
+
+        # Check if it's a specific value (e.g., "5" means every 5 seconds)
+        # This is less common but possible
+        elif seconds_field.isdigit():
+            return int(seconds_field)
+
+    # Fall back to execution-based calculation for complex patterns
     if base_time is None:
         base_time = datetime.utcnow()
 
@@ -87,14 +103,12 @@ def calculate_min_interval_from_cron(cron_expr: str, base_time: Optional[datetim
 
     # Get next several execution times to find minimum interval
     execution_times = []
-    # current_time = base_time  # type: ignore
 
     # Check up to 100 future executions or until we have enough data
     for _ in range(100):
         try:
             next_time = cron.get_next(datetime)
             execution_times.append(next_time)
-            # current_time = next_time  # type: ignore
         except Exception:
             break
 
@@ -116,10 +130,10 @@ def calculate_min_interval_from_cron(cron_expr: str, base_time: Optional[datetim
     return min(intervals)
 
 
-def validate_cron_interval(cron_expr: str, user, base_time: Optional[datetime] = None) -> None:
+def validate_cron_interval(db: Session, cron_expr: str, account_id: str, base_time: Optional[datetime] = None) -> None:
     """
     Validate that a cron expression meets the minimum interval requirement for the user's tier.
-
+    account_id: Account ID to determine tier
     Args:
         cron_expr: Cron expression string
         user: User instance to determine tier
@@ -129,7 +143,7 @@ def validate_cron_interval(cron_expr: str, user, base_time: Optional[datetime] =
         ValueError: If cron expression is invalid or doesn't meet minimum interval
     """
     # Get user tier and minimum interval
-    tier = get_user_tier(user)
+    tier = get_account_tier(db, account_id)
     min_required = get_minimum_interval_for_tier(tier)
 
     # Calculate actual minimum interval from cron expression

@@ -7,15 +7,16 @@ throughout the application request lifecycle.
 """
 
 from contextvars import ContextVar
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from app.models.accounts import Account
+if TYPE_CHECKING:
+    from app.models.accounts import Account
 
 # Thread-safe context variable for storing the current account
-_current_account: ContextVar[Optional[Account]] = ContextVar("current_account", default=None)
+_current_account: ContextVar[Optional["Account"]] = ContextVar("current_account", default=None)
 
 
-def set_current_account_context(account: Optional[Account]) -> None:
+def set_current_account_context(account: Optional["Account"]) -> None:
     """
     Set the current account in the context.
 
@@ -35,7 +36,7 @@ def set_current_account_context(account: Optional[Account]) -> None:
     _current_account.set(account)
 
 
-def get_current_account_context() -> Optional[Account]:
+def get_current_account_context() -> "Account":
     """
     Get the current account from the context.
 
@@ -50,7 +51,10 @@ def get_current_account_context() -> Optional[Account]:
             print(f"Current account: {account.name}")
         ```
     """
-    return _current_account.get()
+    account = _current_account.get()
+    if account is None:
+        raise RuntimeError("No account found in context. Ensure the account middleware has been applied.")
+    return account
 
 
 def clear_current_account_context() -> None:
@@ -63,7 +67,7 @@ def clear_current_account_context() -> None:
     _current_account.set(None)
 
 
-def require_current_account_context() -> Account:
+def require_current_account_context() -> "Account":
     """
     Get the current account from the context, raising an exception if not set.
 

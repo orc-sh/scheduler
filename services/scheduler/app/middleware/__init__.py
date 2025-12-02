@@ -2,6 +2,7 @@
 
 from app.middleware.account_middleware import AccountMiddleware, get_account_middleware, get_current_account
 from app.middleware.auth_middleware import AuthMiddleware, get_auth_middleware, get_current_user
+from app.middleware.middleware_wrapper import middleware_wrapper
 from app.middleware.subscription_middleware import (
     SubscriptionMiddleware,
     get_all_subscriptions_for_user,
@@ -21,6 +22,8 @@ __all__ = [
     "AccountMiddleware",
     "get_account_middleware",
     "get_current_account",
+    # Request context middleware
+    "middleware_wrapper",
     # Subscription middleware
     "SubscriptionMiddleware",
     "get_subscription_middleware",

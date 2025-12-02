@@ -20,7 +20,7 @@ class UrlResponse(BaseModel):
                 "id": "123e4567-e89b-12d3-a456-426614174002",
                 "account_id": "123e4567-e89b-12d3-a456-426614174001",
                 "unique_identifier": "abc123xyz",
-                "path": "/api/webhooks/abc123xyz",
+                "path": "/webhooks/abc123xyz",
                 "created_at": "2024-01-01T00:00:00",
                 "updated_at": "2024-01-01T00:00:00",
             }
@@ -82,7 +82,7 @@ class UrlWithLogsResponse(BaseModel):
                 "id": "123e4567-e89b-12d3-a456-426614174002",
                 "account_id": "123e4567-e89b-12d3-a456-426614174001",
                 "unique_identifier": "abc123xyz",
-                "path": "/api/webhooks/abc123xyz",
+                "path": "/webhooks/abc123xyz",
                 "created_at": "2024-01-01T00:00:00",
                 "updated_at": "2024-01-01T00:00:00",
                 "logs": [

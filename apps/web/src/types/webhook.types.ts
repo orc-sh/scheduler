@@ -66,3 +66,26 @@ export interface CronWebhookResponse {
   job: Job;
   webhook: Webhook;
 }
+
+export type JobExecutionStatus =
+  | 'queued'
+  | 'running'
+  | 'success'
+  | 'failure'
+  | 'timed_out'
+  | 'dead_letter';
+
+export interface JobExecution {
+  id: string;
+  job_id: string;
+  status: JobExecutionStatus;
+  started_at: string | null;
+  finished_at: string | null;
+  response_code: number | null;
+  response_body: string | null;
+  worker_id: string | null;
+  duration_ms: number | null;
+  error: string | null;
+  attempt: number;
+  created_at: string;
+}

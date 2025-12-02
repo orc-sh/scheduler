@@ -6,7 +6,6 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from croniter import croniter
 from sqlalchemy.orm import Session
 
 from app.models.jobs import Job
@@ -27,8 +26,8 @@ class JobService:
 
     def create_job(
         self,
-        account_id: str,
         name: str,
+        account_id: str,
         schedule: str,
         job_type: int,
         timezone: str = "UTC",
@@ -54,8 +53,7 @@ class JobService:
             ValueError: If the cron schedule is invalid or doesn't meet tier requirements
         """
         # Validate cron expression and tier requirements
-        if user:
-            validate_cron_interval(schedule, user)
+        validate_cron_interval(self.db, schedule, account_id)
 
         # Validate cron expression and calculate next run time
         try:
@@ -112,7 +110,6 @@ class JobService:
         job_type: Optional[int] = None,
         timezone: Optional[str] = None,
         enabled: Optional[bool] = None,
-        user=None,  # Add user parameter
     ) -> Optional[Job]:
         """
         Update a job's properties.
@@ -149,8 +146,7 @@ class JobService:
         # If schedule changes, validate and recalculate next_run_at
         if schedule is not None:
             # Validate cron expression and tier requirements
-            if user:
-                validate_cron_interval(schedule, user)
+            validate_cron_interval(self.db, schedule, str(job.account_id))
 
             try:
                 job.schedule = schedule  # type: ignore[assignment]
@@ -182,22 +178,34 @@ class JobService:
 
     def _calculate_next_run(self, schedule: str, timezone: str = "UTC") -> datetime:
         """
-        Calculate the next run time based on cron schedule.
+        Calculate the next run time based on cron schedule, with seconds precision.
 
         Args:
             schedule: Cron expression
             timezone: Timezone for the calculation
 
         Returns:
-            Next run datetime
+            Next run datetime (with seconds level precision)
 
         Raises:
             Exception: If cron expression is invalid
         """
-        base_time = datetime.now()
-        cron = croniter(schedule, base_time)
-        next_run = cron.get_next(datetime)
-        return next_run
+        from datetime import datetime as dt
+
+        from croniter import croniter
+
+        base_time = dt.utcnow().replace(microsecond=0)
+        # Explicitly enable second-level cron schedule support
+        cron = croniter(schedule, base_time, ret_type=float)  # get timestamp for seconds-level precision
+        next_run_ts = cron.get_next(ret_type=datetime)
+        next_run = dt.utcfromtimestamp(next_run_ts)
+        if not isinstance(next_run, dt):
+            # If cron.get_next returns a float (timestamp), convert to datetime
+            next_run = dt.utcfromtimestamp(next_run)
+        if not next_run:
+            raise ValueError("Invalid cron schedule")
+        # ensure no microseconds for seconds-level precision
+        return next_run.replace(microsecond=0)
 
 
 def get_job_service(db: Session) -> JobService:

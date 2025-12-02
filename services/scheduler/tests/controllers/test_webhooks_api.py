@@ -23,7 +23,7 @@ class TestCreateCronWebhookAPI:
         set_current_user_context(test_user)
 
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Test Job",
@@ -74,7 +74,7 @@ class TestCreateCronWebhookAPI:
         set_current_user_context(test_user)
 
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Test Job",
@@ -98,7 +98,7 @@ class TestCreateCronWebhookAPI:
     def test_create_webhook_without_auth(self, client: TestClient):
         """Test creating a webhook without authentication fails."""
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Test Job",
@@ -118,7 +118,7 @@ class TestCreateCronWebhookAPI:
         set_current_user_context(test_user)
 
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Test Job",
@@ -139,7 +139,7 @@ class TestCreateCronWebhookAPI:
         set_current_user_context(test_user)
 
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Test Job",
@@ -158,7 +158,7 @@ class TestCreateCronWebhookAPI:
         set_current_user_context(test_user)
 
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Test Job",
@@ -179,7 +179,7 @@ class TestCreateCronWebhookAPI:
         set_current_user_context(test_user)
 
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Test Job",
@@ -202,7 +202,7 @@ class TestCreateCronWebhookAPI:
         set_current_user_context(test_user)
 
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Test Job",
@@ -226,7 +226,7 @@ class TestCreateCronWebhookAPI:
 
         for method in ["GET", "POST", "PUT", "PATCH", "DELETE"]:
             response = client.post(
-                "/api/webhooks",
+                "/webhooks",
                 json={
                     "job": {
                         "name": f"Test Job {method}",
@@ -255,7 +255,7 @@ class TestCreateCronWebhookAPI:
         }
 
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Test Job",
@@ -280,7 +280,7 @@ class TestCreateCronWebhookAPI:
         query_params = {"api_key": "12345", "format": "json", "version": "v2"}
 
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Test Job",
@@ -305,7 +305,7 @@ class TestCreateCronWebhookAPI:
         body_template = '{"event": "scheduled", "timestamp": "{{timestamp}}", "data": "{{data}}"}'
 
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Test Job",
@@ -328,7 +328,7 @@ class TestCreateCronWebhookAPI:
         set_current_user_context(test_user)
 
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Test Job",
@@ -352,7 +352,7 @@ class TestCreateCronWebhookAPI:
 
         # Create first webhook
         response1 = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Job 1",
@@ -369,7 +369,7 @@ class TestCreateCronWebhookAPI:
 
         # Create second webhook
         response2 = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Job 2",
@@ -395,7 +395,7 @@ class TestCreateCronWebhookAPI:
         # User 1 creates webhook
         set_current_user_context(test_user)
         response1 = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {"name": "Job 1", "schedule": "0 9 * * *", "type": 1},
                 "webhook": {"url": "https://api.example.com/webhook1"},
@@ -406,7 +406,7 @@ class TestCreateCronWebhookAPI:
         # User 2 creates webhook
         set_current_user_context(another_user)
         response2 = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {"name": "Job 2", "schedule": "0 9 * * *", "type": 1},
                 "webhook": {"url": "https://api.example.com/webhook2"},
@@ -430,7 +430,7 @@ class TestWebhookAPIWorkflow:
 
         # Create webhook
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Daily Report",
@@ -486,7 +486,7 @@ class TestWebhookAPIWorkflow:
         # Create 5 webhooks
         for i in range(5):
             response = client.post(
-                "/api/webhooks",
+                "/webhooks",
                 json={
                     "job": {
                         "name": f"Job {i}",
@@ -515,7 +515,7 @@ class TestGetWebhookByIdAPI:
 
         # Create a webhook first
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {
                     "name": "Test Job",
@@ -533,7 +533,7 @@ class TestGetWebhookByIdAPI:
         webhook_id = response.json()["webhook"]["id"]
 
         # Now get the webhook
-        response = client.get(f"/api/webhooks/{webhook_id}")
+        response = client.get(f"/webhooks/{webhook_id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -546,14 +546,14 @@ class TestGetWebhookByIdAPI:
         """Test retrieving a non-existent webhook."""
         set_current_user_context(test_user)
 
-        response = client.get("/api/webhooks/non-existent-id")
+        response = client.get("/webhooks/non-existent-id")
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
     def test_get_webhook_without_auth(self, client: TestClient):
         """Test retrieving a webhook without authentication."""
-        response = client.get("/api/webhooks/some-id")
+        response = client.get("/webhooks/some-id")
 
         assert response.status_code == 401
 
@@ -564,7 +564,7 @@ class TestGetWebhookByIdAPI:
         # User 1 creates a webhook
         set_current_user_context(test_user)
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {"name": "User 1 Job", "schedule": "0 9 * * *", "type": 1},
                 "webhook": {"url": "https://api.example.com/webhook1"},
@@ -575,7 +575,7 @@ class TestGetWebhookByIdAPI:
 
         # User 2 tries to access User 1's webhook
         set_current_user_context(another_user)
-        response = client.get(f"/api/webhooks/{webhook_id}")
+        response = client.get(f"/webhooks/{webhook_id}")
 
         assert response.status_code == 403
         assert "permission" in response.json()["detail"].lower()
@@ -589,7 +589,7 @@ class TestGetAllWebhooksAPI:
         """Test retrieving webhooks when user has none."""
         set_current_user_context(test_user)
 
-        response = client.get("/api/webhooks")
+        response = client.get("/webhooks")
 
         assert response.status_code == 200
         data = response.json()
@@ -602,7 +602,7 @@ class TestGetAllWebhooksAPI:
         # Create multiple webhooks
         for i in range(3):
             response = client.post(
-                "/api/webhooks",
+                "/webhooks",
                 json={
                     "job": {
                         "name": f"Job {i}",
@@ -617,7 +617,7 @@ class TestGetAllWebhooksAPI:
             assert response.status_code == 201
 
         # Get all webhooks
-        response = client.get("/api/webhooks")
+        response = client.get("/webhooks")
 
         assert response.status_code == 200
         data = response.json()
@@ -630,7 +630,7 @@ class TestGetAllWebhooksAPI:
         # Create 10 webhooks
         for i in range(10):
             response = client.post(
-                "/api/webhooks",
+                "/webhooks",
                 json={
                     "job": {
                         "name": f"Job {i}",
@@ -645,18 +645,18 @@ class TestGetAllWebhooksAPI:
             assert response.status_code == 201
 
         # Get first 5
-        response = client.get("/api/webhooks?limit=5&offset=0")
+        response = client.get("/webhooks?limit=5&offset=0")
         assert response.status_code == 200
         assert len(response.json()) == 5
 
         # Get next 5
-        response = client.get("/api/webhooks?limit=5&offset=5")
+        response = client.get("/webhooks?limit=5&offset=5")
         assert response.status_code == 200
         assert len(response.json()) == 5
 
     def test_get_all_webhooks_without_auth(self, client: TestClient):
         """Test retrieving webhooks without authentication."""
-        response = client.get("/api/webhooks")
+        response = client.get("/webhooks")
 
         assert response.status_code == 401
 
@@ -666,7 +666,7 @@ class TestGetAllWebhooksAPI:
         set_current_user_context(test_user)
         for i in range(2):
             response = client.post(
-                "/api/webhooks",
+                "/webhooks",
                 json={
                     "job": {"name": f"User 1 Job {i}", "schedule": "0 9 * * *", "type": 1},
                     "webhook": {"url": f"https://api.example.com/user1-webhook{i}"},
@@ -678,7 +678,7 @@ class TestGetAllWebhooksAPI:
         set_current_user_context(another_user)
         for i in range(3):
             response = client.post(
-                "/api/webhooks",
+                "/webhooks",
                 json={
                     "job": {"name": f"User 2 Job {i}", "schedule": "0 9 * * *", "type": 1},
                     "webhook": {"url": f"https://api.example.com/user2-webhook{i}"},
@@ -687,14 +687,14 @@ class TestGetAllWebhooksAPI:
             assert response.status_code == 201
 
         # User 2 should only see their 3 webhooks
-        response = client.get("/api/webhooks")
+        response = client.get("/webhooks")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 3
 
         # User 1 should only see their 2 webhooks
         set_current_user_context(test_user)
-        response = client.get("/api/webhooks")
+        response = client.get("/webhooks")
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
@@ -710,7 +710,7 @@ class TestUpdateWebhookAPI:
 
         # Create a webhook
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {"name": "Test Job", "schedule": "0 9 * * *", "type": 1},
                 "webhook": {"url": "https://api.example.com/old"},
@@ -721,7 +721,7 @@ class TestUpdateWebhookAPI:
 
         # Update the webhook
         response = client.put(
-            f"/api/webhooks/{webhook_id}",
+            f"/webhooks/{webhook_id}",
             json={"url": "https://api.example.com/new"},
         )
 
@@ -736,7 +736,7 @@ class TestUpdateWebhookAPI:
 
         # Create a webhook
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {"name": "Test Job", "schedule": "0 9 * * *", "type": 1},
                 "webhook": {"url": "https://api.example.com/webhook", "method": "POST"},
@@ -747,7 +747,7 @@ class TestUpdateWebhookAPI:
 
         # Update the method
         response = client.put(
-            f"/api/webhooks/{webhook_id}",
+            f"/webhooks/{webhook_id}",
             json={"method": "PUT"},
         )
 
@@ -761,7 +761,7 @@ class TestUpdateWebhookAPI:
 
         # Create a webhook
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {"name": "Test Job", "schedule": "0 9 * * *", "type": 1},
                 "webhook": {
@@ -775,7 +775,7 @@ class TestUpdateWebhookAPI:
 
         # Update headers
         response = client.put(
-            f"/api/webhooks/{webhook_id}",
+            f"/webhooks/{webhook_id}",
             json={"headers": {"New": "Header", "Another": "Value"}},
         )
 
@@ -789,7 +789,7 @@ class TestUpdateWebhookAPI:
 
         # Create a webhook
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {"name": "Test Job", "schedule": "0 9 * * *", "type": 1},
                 "webhook": {"url": "https://api.example.com/old"},
@@ -800,7 +800,7 @@ class TestUpdateWebhookAPI:
 
         # Update multiple fields
         response = client.put(
-            f"/api/webhooks/{webhook_id}",
+            f"/webhooks/{webhook_id}",
             json={
                 "url": "https://api.example.com/updated",
                 "method": "PATCH",
@@ -819,7 +819,7 @@ class TestUpdateWebhookAPI:
         set_current_user_context(test_user)
 
         response = client.put(
-            "/api/webhooks/non-existent-id",
+            "/webhooks/non-existent-id",
             json={"url": "https://api.example.com/new"},
         )
 
@@ -829,7 +829,7 @@ class TestUpdateWebhookAPI:
     def test_update_webhook_without_auth(self, client: TestClient):
         """Test updating a webhook without authentication."""
         response = client.put(
-            "/api/webhooks/some-id",
+            "/webhooks/some-id",
             json={"url": "https://api.example.com/new"},
         )
 
@@ -840,7 +840,7 @@ class TestUpdateWebhookAPI:
         # User 1 creates a webhook
         set_current_user_context(test_user)
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {"name": "User 1 Job", "schedule": "0 9 * * *", "type": 1},
                 "webhook": {"url": "https://api.example.com/webhook1"},
@@ -852,7 +852,7 @@ class TestUpdateWebhookAPI:
         # User 2 tries to update User 1's webhook
         set_current_user_context(another_user)
         response = client.put(
-            f"/api/webhooks/{webhook_id}",
+            f"/webhooks/{webhook_id}",
             json={"url": "https://api.example.com/hacked"},
         )
 
@@ -865,7 +865,7 @@ class TestUpdateWebhookAPI:
 
         # Create a webhook
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {"name": "Test Job", "schedule": "0 9 * * *", "type": 1},
                 "webhook": {"url": "https://api.example.com/webhook"},
@@ -876,7 +876,7 @@ class TestUpdateWebhookAPI:
 
         # Update query params
         response = client.put(
-            f"/api/webhooks/{webhook_id}",
+            f"/webhooks/{webhook_id}",
             json={"query_params": {"api_key": "12345", "format": "json"}},
         )
 
@@ -890,7 +890,7 @@ class TestUpdateWebhookAPI:
 
         # Create a webhook
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {"name": "Test Job", "schedule": "0 9 * * *", "type": 1},
                 "webhook": {"url": "https://api.example.com/webhook"},
@@ -901,7 +901,7 @@ class TestUpdateWebhookAPI:
 
         # Update body template
         response = client.put(
-            f"/api/webhooks/{webhook_id}",
+            f"/webhooks/{webhook_id}",
             json={"body_template": '{"event": "updated", "data": "{{data}}"}'},
         )
 
@@ -920,7 +920,7 @@ class TestDeleteWebhookAPI:
 
         # Create a webhook
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {"name": "Test Job", "schedule": "0 9 * * *", "type": 1},
                 "webhook": {"url": "https://api.example.com/webhook"},
@@ -930,26 +930,26 @@ class TestDeleteWebhookAPI:
         webhook_id = response.json()["webhook"]["id"]
 
         # Delete the webhook
-        response = client.delete(f"/api/webhooks/{webhook_id}")
+        response = client.delete(f"/webhooks/{webhook_id}")
 
         assert response.status_code == 204
 
         # Verify it's gone
-        response = client.get(f"/api/webhooks/{webhook_id}")
+        response = client.get(f"/webhooks/{webhook_id}")
         assert response.status_code == 404
 
     def test_delete_webhook_not_found(self, client: TestClient, test_user: User):
         """Test deleting a non-existent webhook."""
         set_current_user_context(test_user)
 
-        response = client.delete("/api/webhooks/non-existent-id")
+        response = client.delete("/webhooks/non-existent-id")
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
     def test_delete_webhook_without_auth(self, client: TestClient):
         """Test deleting a webhook without authentication."""
-        response = client.delete("/api/webhooks/some-id")
+        response = client.delete("/webhooks/some-id")
 
         assert response.status_code == 401
 
@@ -958,7 +958,7 @@ class TestDeleteWebhookAPI:
         # User 1 creates a webhook
         set_current_user_context(test_user)
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {"name": "User 1 Job", "schedule": "0 9 * * *", "type": 1},
                 "webhook": {"url": "https://api.example.com/webhook1"},
@@ -969,14 +969,14 @@ class TestDeleteWebhookAPI:
 
         # User 2 tries to delete User 1's webhook
         set_current_user_context(another_user)
-        response = client.delete(f"/api/webhooks/{webhook_id}")
+        response = client.delete(f"/webhooks/{webhook_id}")
 
         assert response.status_code == 403
         assert "permission" in response.json()["detail"].lower()
 
         # Verify webhook still exists for User 1
         set_current_user_context(test_user)
-        response = client.get(f"/api/webhooks/{webhook_id}")
+        response = client.get(f"/webhooks/{webhook_id}")
         assert response.status_code == 200
 
     def test_delete_webhook_cascades_behavior(self, client: TestClient, test_user: User):
@@ -985,7 +985,7 @@ class TestDeleteWebhookAPI:
 
         # Create a webhook
         response = client.post(
-            "/api/webhooks",
+            "/webhooks",
             json={
                 "job": {"name": "Test Job", "schedule": "0 9 * * *", "type": 1},
                 "webhook": {"url": "https://api.example.com/webhook"},
@@ -996,12 +996,12 @@ class TestDeleteWebhookAPI:
         # job_id = response.json()["job"]["id"]
 
         # Delete the webhook
-        response = client.delete(f"/api/webhooks/{webhook_id}")
+        response = client.delete(f"/webhooks/{webhook_id}")
         assert response.status_code == 204
 
         # Verify job still exists (through account/job endpoints if available)
         # For now, we just verify webhook is gone
-        response = client.get(f"/api/webhooks/{webhook_id}")
+        response = client.get(f"/webhooks/{webhook_id}")
         assert response.status_code == 404
 
 

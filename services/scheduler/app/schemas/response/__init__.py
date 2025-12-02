@@ -2,6 +2,7 @@
 # Add scheduler-specific response schemas here (e.g., JobResponse, WebhookResponse, etc.)
 
 from .account_schemas import AccountResponse
+from .job_execution_schemas import JobExecutionResponse
 from .notification_schemas import NotificationResponse
 from .pagination_schemas import PaginatedResponse, PaginationMetadata
 from .subscription_schemas import SubscriptionResponse
@@ -16,4 +17,5 @@ __all__ = [
     "UrlResponse",
     "UrlLogResponse",
     "UrlWithLogsResponse",
+    "JobExecutionResponse",
 ]

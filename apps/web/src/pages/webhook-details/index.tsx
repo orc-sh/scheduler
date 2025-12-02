@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWebhook, useDeleteWebhook, useUpdateWebhook } from '@/hooks/use-webhooks';
+import { useJobExecutions } from '@/hooks/use-job-executions';
 import { FadeIn } from '@/components/motion/fade-in';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,66 +34,71 @@ import { useState, useMemo } from 'react';
 import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
 import { CartesianGrid, XAxis, YAxis, Bar, BarChart, Cell } from 'recharts';
 
-// Dummy execution logs data
-const generateDummyExecutions = () => {
-  const statuses = ['success', 'error', 'timeout'];
-  const statusCodes = [200, 201, 400, 404, 500, 502, 504];
+// Transform API execution data to frontend format
+const transformExecution = (execution: any) => {
+  const statusCode =
+    execution.response_code ||
+    (execution.status === 'success' ? 200 : execution.status === 'failure' ? 500 : 0);
+  const isSuccess = statusCode >= 200 && statusCode < 300;
+  const timestamp = new Date(execution.created_at);
 
-  return Array.from({ length: 15 }, (_, i) => {
-    const status = statuses[Math.floor(Math.random() * statuses.length)];
-    const statusCode = statusCodes[Math.floor(Math.random() * statusCodes.length)];
-    const isSuccess = statusCode >= 200 && statusCode < 300;
-    const timestamp = new Date(Date.now() - i * 3600000 - Math.random() * 3600000);
+  // Parse response body if it's a string, otherwise use as-is
+  let responseBody = execution.response_body;
+  if (responseBody && typeof responseBody === 'string') {
+    try {
+      // Try to parse as JSON and format it nicely
+      const parsed = JSON.parse(responseBody);
+      responseBody = JSON.stringify(parsed, null, 2);
+    } catch {
+      // If not JSON, use as-is
+    }
+  }
 
-    return {
-      id: `exec-${i + 1}`,
-      timestamp,
-      status: isSuccess ? 'success' : status,
-      statusCode,
-      duration: Math.floor(Math.random() * 2000) + 100,
-      response: isSuccess
-        ? {
-            status: statusCode,
-            body: JSON.stringify(
-              {
-                message: 'Request processed successfully',
-                data: { id: Math.random().toString(36).substring(7) },
-              },
-              null,
-              2
-            ),
-            headers: {
-              'content-type': 'application/json',
-              'x-request-id': Math.random().toString(36).substring(7),
-            },
-          }
-        : {
-            status: statusCode,
-            body: JSON.stringify(
-              {
-                error: statusCode >= 500 ? 'Internal server error' : 'Bad request',
-                message: 'Request failed',
-              },
-              null,
-              2
-            ),
-            headers: {
-              'content-type': 'application/json',
-            },
-          },
-    };
-  }).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  return {
+    id: execution.id,
+    timestamp,
+    status:
+      execution.status === 'success'
+        ? 'success'
+        : execution.status === 'failure'
+          ? 'error'
+          : execution.status === 'timed_out'
+            ? 'timeout'
+            : 'error',
+    statusCode,
+    duration: execution.duration_ms || 0,
+    response: {
+      status: statusCode,
+      body:
+        responseBody ||
+        (isSuccess
+          ? JSON.stringify({ message: 'Request processed successfully' }, null, 2)
+          : JSON.stringify({ error: execution.error || 'Request failed' }, null, 2)),
+      headers: {
+        'content-type': 'application/json',
+        ...(execution.worker_id && { 'x-worker-id': execution.worker_id }),
+      },
+    },
+  };
 };
 
 const WebhookDetailsPage = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { data: webhook, isLoading, isError } = useWebhook(id!);
+  const { data: executionsData, isLoading: isLoadingExecutions } = useJobExecutions(id);
   const deleteWebhook = useDeleteWebhook();
   const updateWebhook = useUpdateWebhook();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [expandedExecution, setExpandedExecution] = useState<string | null>(null);
-  const [executions] = useState(generateDummyExecutions());
+
+  // Transform API executions to frontend format
+  const executions = useMemo(() => {
+    if (!executionsData) return [];
+    return executionsData
+      .map(transformExecution)
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }, [executionsData]);
 
   // Handle toggle enable/disable
   const handleToggleEnabled = async (newEnabled: boolean) => {
@@ -127,7 +133,8 @@ const WebhookDetailsPage = () => {
     const total = executions.length;
     const success = executions.filter((e) => e.statusCode >= 200 && e.statusCode < 300).length;
     const error = total - success;
-    const avgDuration = Math.round(executions.reduce((sum, e) => sum + e.duration, 0) / total);
+    const avgDuration =
+      total > 0 ? Math.round(executions.reduce((sum, e) => sum + e.duration, 0) / total) : 0;
     const successRate = total > 0 ? Math.round((success / total) * 100) : 0;
 
     return { total, success, error, avgDuration, successRate };
@@ -381,90 +388,109 @@ const WebhookDetailsPage = () => {
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-sm font-semibold text-foreground">Execution Logs</h3>
                     <Badge variant="outline" className="text-xs">
-                      {executions.length} executions
+                      {isLoadingExecutions ? '...' : executions.length} executions
                     </Badge>
                   </div>
-                  <div className="space-y-1">
-                    {executions.map((execution) => (
-                      <div
-                        key={execution.id}
-                        className="border rounded-md hover:bg-muted/30 transition-colors"
-                      >
-                        <button
-                          onClick={() =>
-                            setExpandedExecution(
-                              expandedExecution === execution.id ? null : execution.id
-                            )
-                          }
-                          className="w-full p-3 flex items-center justify-between text-left"
+                  {isLoadingExecutions ? (
+                    <div className="space-y-1">
+                      {[...Array(3)].map((_, i) => (
+                        <Skeleton key={i} className="h-16 w-full" />
+                      ))}
+                    </div>
+                  ) : executions.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <p className="text-sm">No executions yet</p>
+                      <p className="text-xs mt-1">
+                        Executions will appear here once the webhook runs
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {executions.map((execution) => (
+                        <div
+                          key={execution.id}
+                          className="border rounded-md hover:bg-muted/30 transition-colors"
                         >
-                          <div className="flex items-center gap-3 flex-1 min-w-0">
-                            <div className="shrink-0">
-                              {expandedExecution === execution.id ? (
-                                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                              )}
-                            </div>
-                            <div className="shrink-0">
-                              <Play className="h-3.5 w-3.5 text-muted-foreground" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                {getStatusBadge(execution.status, execution.statusCode)}
-                                <span className="text-xs text-muted-foreground">
-                                  {formatDistanceToNow(execution.timestamp, { addSuffix: true })}
-                                </span>
+                          <button
+                            onClick={() =>
+                              setExpandedExecution(
+                                expandedExecution === execution.id ? null : execution.id
+                              )
+                            }
+                            className="w-full p-3 flex items-center justify-between text-left"
+                          >
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                              <div className="shrink-0">
+                                {expandedExecution === execution.id ? (
+                                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                )}
                               </div>
-                              <p className="text-xs text-muted-foreground truncate">
-                                {execution.timestamp.toLocaleString()}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-3 shrink-0">
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <Timer className="h-3 w-3" />
-                                {execution.duration}ms
+                              <div className="shrink-0">
+                                <Play className="h-3.5 w-3.5 text-muted-foreground" />
                               </div>
-                            </div>
-                          </div>
-                        </button>
-                        {expandedExecution === execution.id && (
-                          <div className="border-t p-4 bg-muted/10 space-y-3">
-                            <div>
-                              <p className="text-xs font-medium text-muted-foreground mb-2">
-                                Response ({execution.response.status})
-                              </p>
-                              <div className="rounded-md border bg-background">
-                                <div className="border-b p-2 bg-muted/30">
-                                  <p className="text-xs font-medium text-foreground">Headers</p>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  {getStatusBadge(execution.status, execution.statusCode)}
+                                  <span className="text-xs text-muted-foreground">
+                                    {formatDistanceToNow(execution.timestamp, { addSuffix: true })}
+                                  </span>
                                 </div>
-                                <div className="p-3">
-                                  <div className="space-y-1">
-                                    {Object.entries(execution.response.headers).map(
-                                      ([key, value]) => (
-                                        <div key={key} className="flex gap-2 text-xs">
-                                          <code className="text-muted-foreground font-mono">
-                                            {key}:
-                                          </code>
-                                          <code className="text-foreground font-mono">{value}</code>
-                                        </div>
-                                      )
-                                    )}
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {execution.timestamp.toLocaleString()}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                  <Timer className="h-3 w-3" />
+                                  {execution.duration}ms
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                          {expandedExecution === execution.id && (
+                            <div className="border-t p-4 bg-muted/10 space-y-3">
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground mb-2">
+                                  Response ({execution.response.status})
+                                </p>
+                                <div className="rounded-md border bg-background">
+                                  <div className="border-b p-2 bg-muted/30">
+                                    <p className="text-xs font-medium text-foreground">Headers</p>
+                                  </div>
+                                  <div className="p-3">
+                                    <div className="space-y-1">
+                                      {Object.entries(execution.response.headers).map(
+                                        ([key, value]) => (
+                                          <div key={key} className="flex gap-2 text-xs">
+                                            <code className="text-muted-foreground font-mono">
+                                              {key}:
+                                            </code>
+                                            <code className="text-foreground font-mono">
+                                              {value}
+                                            </code>
+                                          </div>
+                                        )
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground mb-2">
+                                  Body
+                                </p>
+                                <pre className="text-xs font-mono p-3 rounded-md bg-background border overflow-x-auto">
+                                  {execution.response.body}
+                                </pre>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-xs font-medium text-muted-foreground mb-2">Body</p>
-                              <pre className="text-xs font-mono p-3 rounded-md bg-background border overflow-x-auto">
-                                {execution.response.body}
-                              </pre>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </FadeIn>

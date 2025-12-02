@@ -3,21 +3,22 @@ Subscription controller for managing subscription operations with Chargebee.
 Exposes upgrade/downgrade, cancel operations and helpers for hosted-page flows.
 """
 
-import logging
-
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.clients.subscription_client import get_subscription_client
 from app.constants.app_constants import BACKEND_BASE_URL, FRONTEND_BASE_URL
+from app.logging.context_logger import get_logger
 from app.middleware.auth_middleware import get_current_user
 from app.models.user import User
 from app.schemas.response.subscription_schemas import SubscriptionResponse
 from app.services.subscription_service import get_subscription_service
+from app.utils.jwt_helper import generate_jwt_token
+from config.environment import get_chargebee_jwt_client_secret
 from db.client import client
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 router = APIRouter()
 
@@ -108,6 +109,27 @@ async def create_upgrade_url(
         # After completion, Chargebee redirects back to backend_callback with hosted_page_id.
         hosted_page_cls = cb_client._client.HostedPage  # type: ignore[attr-defined]
 
+        jwt_token = generate_jwt_token(
+            payload={
+                "sub": str(user.id),
+                "email": user.email,
+                "phone": user.phone,
+                "role": user.role,
+                "aud": user.aud,
+                "session_id": user.session_id,
+                "app_metadata": user.app_metadata,
+                "user_metadata": user.user_metadata,
+                "created_at": user.created_at,
+                "updated_at": user.updated_at,
+                "email_confirmed_at": user.email_confirmed_at,
+                "phone_confirmed_at": user.phone_confirmed_at,
+                "confirmed_at": user.confirmed_at,
+                "last_sign_in_at": user.last_sign_in_at,
+            },
+            secret=get_chargebee_jwt_client_secret(),
+        )
+        # Pass JWT token as query parameter since browser redirects don't preserve headers
+        backend_callback_with_token = f"{backend_callback}?token={jwt_token}"
         params = {
             "subscription": {
                 "id": str(subscription.chargebee_subscription_id),
@@ -118,8 +140,8 @@ async def create_upgrade_url(
                     "quantity": 1,
                 }
             ],
-            "redirect_url": backend_callback,
-            "cancel_url": backend_callback,
+            "redirect_url": backend_callback_with_token,
+            "cancel_url": backend_callback_with_token,
         }
         hosted_page = hosted_page_cls.checkout_existing_for_items(params)  # type: ignore[arg-type]
         checkout_url = str(hosted_page.hosted_page.url)
@@ -135,7 +157,10 @@ async def create_upgrade_url(
 
 
 @router.get("/callback")
-async def chargebee_callback(request: Request, db: Session = Depends(client)) -> Response:
+async def chargebee_callback(
+    request: Request,
+    db: Session = Depends(client),
+) -> Response:
     """
     Backend callback endpoint for Chargebee hosted checkout.
 

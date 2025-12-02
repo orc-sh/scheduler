@@ -10,6 +10,7 @@ This service runs as a separate process and is responsible for:
 
 import logging
 import time
+import uuid
 from datetime import datetime
 from typing import List, Optional
 
@@ -105,6 +106,11 @@ class SchedulerService:
                         )
             except Exception as e:
                 logger.error(f"Error in scheduler tick: {e}", exc_info=True)
+                # Rollback session if it's in a bad state
+                try:
+                    self.db.rollback()
+                except Exception:
+                    pass  # Ignore rollback errors
 
             time.sleep(self.current_interval)
 
@@ -159,18 +165,39 @@ class SchedulerService:
         Returns:
             List of due Job instances
         """
-        now = datetime.utcnow()
-        return (
-            self.db.query(Job)
-            .filter(
-                and_(
-                    Job.enabled == True,  # noqa: E712
-                    Job.next_run_at <= now,
+        try:
+            now = datetime.utcnow()
+            return (
+                self.db.query(Job)
+                .filter(
+                    and_(
+                        Job.enabled == True,  # noqa: E712
+                        Job.next_run_at <= now,
+                    )
                 )
+                .limit(batch_size)
+                .all()
             )
-            .limit(batch_size)
-            .all()
-        )
+        except Exception as e:
+            # If session is in a bad state, rollback and retry once
+            logger.warning(f"Error querying due jobs, rolling back session: {e}")
+            try:
+                self.db.rollback()
+                now = datetime.utcnow()
+                return (
+                    self.db.query(Job)
+                    .filter(
+                        and_(
+                            Job.enabled == True,  # noqa: E712
+                            Job.next_run_at <= now,
+                        )
+                    )
+                    .limit(batch_size)
+                    .all()
+                )
+            except Exception as retry_error:
+                logger.error(f"Error retrying query after rollback: {retry_error}", exc_info=True)
+                return []
 
     def _try_claim_and_enqueue(self, job: Job) -> bool:
         """
@@ -208,6 +235,7 @@ class SchedulerService:
 
             # Create job execution record
             execution = JobExecution(
+                id=str(uuid.uuid4()),
                 job_id=job.id,
                 status="queued",
                 attempt=1,

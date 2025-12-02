@@ -32,6 +32,14 @@ def get_supabase_jwt_secret() -> str:
     return secret
 
 
+def get_chargebee_jwt_client_secret() -> str:
+    """Get Chargebee JWT secret for token verification"""
+    secret = os.getenv("CHARGEBEE_JWT_CLIENT_SECRET")
+    if not secret:
+        raise ValueError("CHARGEBEE_JWT_CLIENT_SECRET environment variable is not set")
+    return secret
+
+
 def get_frontend_url() -> str:
     """Get frontend URL for CORS and redirects"""
     return os.getenv("FRONTEND_URL", "http://localhost:3000")

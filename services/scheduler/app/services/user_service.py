@@ -2,15 +2,14 @@
 User service for managing user account operations.
 """
 
-import logging
-
 from sqlalchemy.orm import Session
 
+from app.logging.context_logger import get_logger
 from app.models.accounts import Account
 from app.services.account_service import get_account_service
 from app.services.subscription_service import get_subscription_service
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class UserService:

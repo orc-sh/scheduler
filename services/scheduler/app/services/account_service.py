@@ -2,15 +2,15 @@
 Account service for managing CRUD operations on accounts.
 """
 
-import logging
 import uuid
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
+from app.logging.context_logger import get_logger
 from app.models.accounts import Account
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class AccountService:

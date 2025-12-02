@@ -6,17 +6,17 @@ Chargebee API calls to the SubscriptionClient.
 """
 
 import json
-import logging
 from datetime import datetime
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
 from app.clients.subscription_client import get_subscription_client
+from app.logging.context_logger import get_logger
 from app.models.accounts import Account
 from app.models.subscriptions import Subscription
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class SubscriptionService:

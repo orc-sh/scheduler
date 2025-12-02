@@ -6,6 +6,7 @@ Handles webhook execution, retries, timeouts, and dead letter queue.
 
 import logging
 import time
+import uuid
 from datetime import datetime, timedelta
 from typing import Any, Dict, Optional
 
@@ -84,7 +85,7 @@ def execute_job(self, execution_id: str):
             return
 
         # Check if job is still enabled
-        if not job.enabled:
+        if not job.enabled.value:
             logger.warning(f"Job {job.id} is not enabled")
             _update_execution_status_in_db(db, execution_id, "failure", error="Job is disabled")
             return
@@ -175,13 +176,30 @@ def _handle_execution_failure(db: Session, execution: JobExecution, job: Job, er
         )
 
         # Create new execution for retry
+        execution_id = str(uuid.uuid4())
         new_execution = JobExecution(
+            id=execution_id,
             job_id=job.id,
             status="queued",
             attempt=execution.attempt + 1,
         )
         db.add(new_execution)
-        db.commit()
+        try:
+            # Flush to ensure the id is set before commit
+            # Note: If you see "Field 'id' doesn't have a default value" error,
+            # this likely indicates a database schema mismatch - the table's id
+            # column may be defined as integer AUTO_INCREMENT instead of String(36)
+            db.flush()
+            db.commit()
+        except Exception as commit_error:
+            db.rollback()
+            logger.error(
+                f"Failed to create retry execution for job {job.id}: {commit_error}. "
+                f"Execution ID: {execution_id}, Job ID: {job.id}. "
+                f"This may indicate a database schema mismatch - ensure the job_executions "
+                f"table has 'id' defined as VARCHAR(36), not INT AUTO_INCREMENT."
+            )
+            raise
 
         # Enqueue retry task with ETA
         celery_app.send_task(

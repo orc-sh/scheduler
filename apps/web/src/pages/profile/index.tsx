@@ -91,7 +91,12 @@ const ProfilePage = () => {
     });
 
     // If upgrading to a paid plan, use Chargebee hosted page flow
-    if (newPlanId === PLAN_IDS.PRO || newPlanId === PLAN_IDS.PRO_YEARLY) {
+    if (
+      newPlanId === PLAN_IDS.PRO ||
+      newPlanId === PLAN_IDS.PRO_YEARLY ||
+      newPlanId === PLAN_IDS.FREE_YEARLY ||
+      newPlanId === PLAN_IDS.FREE
+    ) {
       setUpdatingSubscriptionId(activeSubscription.id);
       try {
         const callbackUrl = `${window.location.origin}/billing/callback`;
@@ -126,41 +131,6 @@ const ProfilePage = () => {
       }
 
       return;
-    }
-
-    // Downgrade or switch between free plans: update directly via API
-    setUpdatingSubscriptionId(activeSubscription.id);
-
-    try {
-      const result = await updateSubscription.mutateAsync({
-        subscriptionId: activeSubscription.id,
-        data: { plan_id: newPlanId },
-      });
-
-      console.log('Subscription updated successfully:', result);
-
-      toast('Plan updated successfully', {
-        description: 'Your plan has been updated.',
-      });
-    } catch (error: any) {
-      console.error('Failed to update subscription:', error);
-      console.error('Error details:', {
-        message: error?.message,
-        response: error?.response,
-        data: error?.response?.data,
-        status: error?.response?.status,
-      });
-
-      const errorMessage =
-        error?.response?.data?.detail ||
-        error?.message ||
-        'An error occurred while updating your plan.';
-
-      toast.error('Failed to update plan', {
-        description: errorMessage,
-      });
-    } finally {
-      setUpdatingSubscriptionId(null);
     }
   };
 

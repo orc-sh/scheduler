@@ -374,7 +374,7 @@ curl "http://localhost:8000/api/jobs/job-uuid/executions?status=failure" \
 
 Create a webhook for a job.
 
-**Endpoint**: `POST /api/webhooks`
+**Endpoint**: `POST /webhooks`
 
 **Headers**:
 ```
@@ -429,7 +429,7 @@ Content-Type: application/json
 
 **Example**:
 ```bash
-curl -X POST http://localhost:8000/api/webhooks \
+curl -X POST http://localhost:8000/webhooks \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -447,7 +447,7 @@ curl -X POST http://localhost:8000/api/webhooks \
 
 Get a webhook by ID.
 
-**Endpoint**: `GET /api/webhooks/{webhook_id}`
+**Endpoint**: `GET /webhooks/{webhook_id}`
 
 **Headers**:
 ```
@@ -475,7 +475,7 @@ Authorization: Bearer <token>
 
 Update a webhook.
 
-**Endpoint**: `PUT /api/webhooks/{webhook_id}`
+**Endpoint**: `PUT /webhooks/{webhook_id}`
 
 **Headers**:
 ```
@@ -513,7 +513,7 @@ Content-Type: application/json
 
 Delete a webhook.
 
-**Endpoint**: `DELETE /api/webhooks/{webhook_id}`
+**Endpoint**: `DELETE /webhooks/{webhook_id}`
 
 **Headers**:
 ```
@@ -677,7 +677,7 @@ print(f"Created job: {job['id']}")
 
 # Create webhook for job
 response = httpx.post(
-    f"{BASE_URL}/api/webhooks",
+    f"{BASE_URL}/webhooks",
     headers=headers,
     json={
         "job_id": job["id"],
@@ -727,7 +727,7 @@ const job = await jobResponse.json();
 console.log(`Created job: ${job.id}`);
 
 // Create webhook for job
-const webhookResponse = await fetch(`${BASE_URL}/api/webhooks`, {
+const webhookResponse = await fetch(`${BASE_URL}/webhooks`, {
   method: 'POST',
   headers,
   body: JSON.stringify({
@@ -773,7 +773,7 @@ JOB_ID=$(curl -s -X POST "$BASE_URL/api/jobs" \
 echo "Created job: $JOB_ID"
 
 # Create webhook
-WEBHOOK_ID=$(curl -s -X POST "$BASE_URL/api/webhooks" \
+WEBHOOK_ID=$(curl -s -X POST "$BASE_URL/webhooks" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "{

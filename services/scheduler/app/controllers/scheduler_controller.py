@@ -8,11 +8,14 @@ from sqlalchemy.orm import Session
 from app.middleware.auth_middleware import get_current_user
 from app.models.user import User
 from app.schemas.request.webhook_schemas import CreateCronWebhookRequest, UpdateWebhookRequest
+from app.schemas.response.job_execution_schemas import JobExecutionResponse
 from app.schemas.response.webhook_schemas import CronWebhookResponse, WebhookResponse
 from app.services.account_service import get_account_service
+from app.services.job_execution_service import get_job_execution_service
 from app.services.job_service import get_job_service
 from app.services.webhook_service import get_webhook_service
 from db.client import client
+from lib.exception.not_found import NotFoundException
 
 router = APIRouter()
 
@@ -293,7 +296,6 @@ async def update_webhook(
                 schedule=request.job.schedule,
                 timezone=request.job.timezone,
                 enabled=request.job.enabled,
-                user=user,  # Pass user for tier validation
             )
             if updated_job:
                 job = updated_job
@@ -404,4 +406,31 @@ async def delete_webhook(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to delete webhook: {str(e)}",
+        )
+
+
+@router.get("/{webhook_id}/executions", response_model=list[JobExecutionResponse], status_code=status.HTTP_200_OK)
+async def get_job_executions(
+    webhook_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(client),
+):
+    """
+    Get all executions for a webhook.
+    """
+    try:
+        webhook_service = get_webhook_service(db)
+        webhook = webhook_service.get_webhook(webhook_id)
+        job_execution_service = get_job_execution_service(db)
+        if not webhook:
+            raise NotFoundException(detail="Webhook not found")
+
+        executions = job_execution_service.get_executions_by_job_id(str(webhook.job_id))
+        return executions
+    except NotFoundException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get job executions: {str(e)}",
         )
