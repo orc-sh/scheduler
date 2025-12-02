@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api, { clearTokens } from '@/lib/api';
 import { useAuthStore } from '@/stores/auth-store';
-import { toast } from '@/hooks/use-toast';
 import type { User, OAuthUrlResponse, OAuthCallbackResponse } from '@/types';
 
 /**

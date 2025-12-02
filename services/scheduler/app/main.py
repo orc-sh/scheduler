@@ -49,8 +49,35 @@ async def auth_and_account_context_middleware(request: Request, call_next):
     1. Authenticate the request and set the current user in context
     2. Resolve and set the current account in context
     """
-    # Allow unauthenticated access to health checks
-    if request.url.path in {"/health", "/health/"}:
+    # Exact paths that should be accessible without auth
+    # (health checks, docs, schema, webhooks, external callbacks, etc.)
+    public_paths = {
+        "/health",
+        "/health/",
+        "/health/detailed",
+        "/metrics",
+        "/openapi.json",
+        "/docs",
+        "/docs/",
+        "/redoc",
+        "/redoc/",
+        # Chargebee / external billing callbacks (no user JWT available)
+        "/api/subscriptions/callback",
+    }
+
+    # Prefixes for public routes (e.g. incoming webhooks / public URL receivers)
+    public_prefixes = [
+        "/api/webhooks/",
+    ]
+
+    path = request.url.path
+
+    # Allow unauthenticated access to public paths, public prefixes, and CORS preflight requests
+    if (
+        path in public_paths
+        or any(path.startswith(prefix) for prefix in public_prefixes)
+        or request.method == "OPTIONS"
+    ):
         return await call_next(request)
 
     # Run auth middleware to populate user context / request.state.user

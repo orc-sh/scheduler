@@ -5,7 +5,6 @@ URL controller for managing URL endpoints and logs.
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.constants.app_constants import DEFAULT_PROJECT_NAME
 from app.middleware.auth_middleware import get_current_user
 from app.models.user import User
 from app.schemas.request.url_schemas import CreateUrlRequest
@@ -40,7 +39,7 @@ async def create_url(
     """
     # Verify account exists and belongs to user
     account_service = get_account_service(db)
-    account = account_service.get_or_create_account_by_name(user_id=user.id, account_name=DEFAULT_PROJECT_NAME)
+    account = account_service.get_or_create_account_by_name(user_id=user.id, account_name=user.name)
 
     # Create URL
     url_service = get_url_service(db)

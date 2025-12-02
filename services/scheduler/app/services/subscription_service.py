@@ -186,7 +186,7 @@ class SubscriptionService:
 
             # Update subscription in Chargebee
             cb_subscription = subscription_client.update_subscription(
-                chargebee_subscription_id=subscription.chargebee_subscription_id,
+                chargebee_subscription_id=str(subscription.chargebee_subscription_id),
                 plan_id=plan_id,
             )
 
@@ -243,7 +243,7 @@ class SubscriptionService:
 
             # Cancel subscription in Chargebee
             cb_subscription = subscription_client.cancel_subscription(
-                chargebee_subscription_id=subscription.chargebee_subscription_id,
+                chargebee_subscription_id=str(subscription.chargebee_subscription_id),
                 cancel_reason=cancel_reason,
             )
 
@@ -309,6 +309,12 @@ class SubscriptionService:
             # Fetch subscription from Chargebee
             cb_subscription = subscription_client.get_subscription(chargebee_subscription_id)
 
+            logger.info(f"Syncing subscription {cb_subscription} from Chargebee: {cb_subscription}")
+            # Derive plan_id in a Product Catalog 2.0 friendly way
+            plan_id = self._extract_plan_id_from_cb_subscription(cb_subscription)
+            if not plan_id:
+                raise ValueError("Chargebee subscription is missing plan_id / item_price_id")
+
             # Find or create local subscription record
             subscription = (
                 self.db.query(Subscription)
@@ -319,7 +325,8 @@ class SubscriptionService:
             if subscription:
                 # Update existing record
                 subscription.status = cb_subscription.status  # type: ignore[attr-defined]
-                subscription.plan_id = cb_subscription.plan_id  # type: ignore[attr-defined]
+                # For PC 2.0, plan_id may be on subscription_items instead of root
+                subscription.plan_id = plan_id  # type: ignore[assignment]
                 subscription.current_term_start = self._parse_datetime(  # type: ignore[attr-defined,assignment]
                     getattr(cb_subscription, "current_term_start", None)
                 )
@@ -329,9 +336,25 @@ class SubscriptionService:
                 subscription.trial_end = self._parse_datetime(  # type: ignore[attr-defined,assignment]
                     getattr(cb_subscription, "trial_end", None)
                 )
-                subscription.subscription_metadata = (  # type: ignore[attr-defined,assignment]
-                    json.dumps(vars(cb_subscription)) if hasattr(cb_subscription, "__dict__") else None
-                )
+                # Best-effort serialization of full Chargebee payload for debugging/auditing.
+                # We intentionally swallow serialization errors to avoid failing the sync.
+                try:
+                    if hasattr(cb_subscription, "to_json"):
+                        subscription.subscription_metadata = json.dumps(
+                            cb_subscription.to_json(), default=str
+                        )  # type: ignore[attr-defined,assignment]
+                    elif hasattr(cb_subscription, "__dict__"):
+                        subscription.subscription_metadata = json.dumps(
+                            vars(cb_subscription), default=str
+                        )  # type: ignore[attr-defined,assignment]
+                    else:
+                        subscription.subscription_metadata = None  # type: ignore[attr-defined,assignment]
+                except Exception as ser_err:
+                    logger.warning(
+                        "Failed to serialize Chargebee subscription metadata: %s",
+                        ser_err,
+                    )
+                    subscription.subscription_metadata = None  # type: ignore[attr-defined,assignment]
             else:
                 # Create new record (shouldn't happen often, but handle it)
                 subscription = Subscription(
@@ -339,7 +362,7 @@ class SubscriptionService:
                     account_id="",  # Will need to be set manually
                     chargebee_subscription_id=cb_subscription.id,  # type: ignore[attr-defined]
                     chargebee_customer_id=getattr(cb_subscription, "customer_id", ""),  # type: ignore[attr-defined]
-                    plan_id=cb_subscription.plan_id,  # type: ignore[attr-defined]
+                    plan_id=plan_id,  # type: ignore[assignment]
                     status=cb_subscription.status,  # type: ignore[attr-defined]
                     current_term_start=self._parse_datetime(  # type: ignore[attr-defined]
                         getattr(cb_subscription, "current_term_start", None)
@@ -350,12 +373,23 @@ class SubscriptionService:
                     trial_end=self._parse_datetime(  # type: ignore[attr-defined]
                         getattr(cb_subscription, "trial_end", None)
                     ),
-                    subscription_metadata=(
-                        json.dumps(cb_subscription.to_json())  # type: ignore[attr-defined]
-                        if hasattr(cb_subscription, "to_json")
-                        else None
-                    ),
+                    subscription_metadata=None,
                 )
+                # Populate metadata in a best-effort way (same logic as above)
+                try:
+                    if hasattr(cb_subscription, "to_json"):
+                        subscription.subscription_metadata = json.dumps(
+                            cb_subscription.to_json(), default=str
+                        )  # type: ignore[attr-defined,assignment]
+                    elif hasattr(cb_subscription, "__dict__"):
+                        subscription.subscription_metadata = json.dumps(
+                            vars(cb_subscription), default=str
+                        )  # type: ignore[attr-defined,assignment]
+                except Exception as ser_err:
+                    logger.warning(
+                        "Failed to serialize Chargebee subscription metadata (new): %s",
+                        ser_err,
+                    )
                 self.db.add(subscription)
 
             self.db.commit()
@@ -368,6 +402,29 @@ class SubscriptionService:
             logger.error(f"Failed to sync subscription from Chargebee: {str(e)}")
             self.db.rollback()
             raise ValueError(f"Failed to sync subscription: {str(e)}")
+
+    def _extract_plan_id_from_cb_subscription(self, cb_subscription: object) -> Optional[str]:
+        """
+        Extract a plan_id / item_price_id from a Chargebee subscription object.
+
+        Supports both Product Catalog 1.0 (subscription.plan_id)
+        and Product Catalog 2.0 (subscription.subscription_items[0].item_price_id).
+        """
+        # Direct plan_id (PC 1.0 or some PC 2.0 setups)
+        direct_plan_id = getattr(cb_subscription, "plan_id", None)
+        if direct_plan_id:
+            return str(direct_plan_id)
+
+        # PC 2.0: subscription_items
+        items = getattr(cb_subscription, "subscription_items", None)
+        if items and isinstance(items, (list, tuple)):
+            first = items[0]
+            item_price_id = getattr(first, "item_price_id", None)
+            if item_price_id:
+                return str(item_price_id)
+
+        # Fallback: nothing found
+        return None
 
     def _parse_datetime(self, timestamp: Optional[int]) -> Optional[datetime]:
         """

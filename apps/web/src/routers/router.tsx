@@ -16,6 +16,7 @@ import WebhookDetailsPage from '@/pages/webhook-details';
 import UrlDetailsPage from '@/pages/url-details';
 import NotificationsPage from '@/pages/notifications';
 import ProfilePage from '@/pages/profile';
+import BillingCallbackPage from '@/pages/billing-callback';
 import NotFoundPage from '@/pages/not-found';
 
 export const AppRouter = () => {
@@ -28,6 +29,7 @@ export const AppRouter = () => {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route path="/billing/callback" element={<BillingCallbackPage />} />
       </Route>
 
       {/* Public cron builder (no auth required) */}

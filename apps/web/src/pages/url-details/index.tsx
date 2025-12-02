@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Copy, Check, Globe, Trash2, ExternalLink } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -42,8 +42,7 @@ const UrlDetailsPage = () => {
   const handleCopy = (text: string, logId: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(logId);
-    toast({
-      title: 'Copied!',
+    toast('Copied!', {
       description: 'Content copied to clipboard',
     });
     setTimeout(() => setCopiedId(null), 2000);
@@ -86,8 +85,7 @@ const UrlDetailsPage = () => {
   const handleCopyPath = (path: string, urlId: string) => {
     navigator.clipboard.writeText(path);
     setCopiedId(urlId);
-    toast({
-      title: 'Copied!',
+    toast('Copied!', {
       description: 'Content copied to clipboard',
     });
     setTimeout(() => setCopiedId(null), 2000);

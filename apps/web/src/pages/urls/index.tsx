@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Plus, ExternalLink, Copy, Check, Globe, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 const UrlsPage = () => {
   const navigate = useNavigate();
@@ -31,8 +31,7 @@ const UrlsPage = () => {
     const fullPath = `${window.location.origin}${path}`;
     navigator.clipboard.writeText(fullPath);
     setCopiedId(urlId);
-    toast({
-      title: 'Copied!',
+    toast('Copied!', {
       description: 'URL path copied to clipboard',
     });
     setTimeout(() => setCopiedId(null), 2000);

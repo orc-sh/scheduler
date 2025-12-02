@@ -1,20 +1,43 @@
 """
 Subscription controller for managing subscription operations with Chargebee.
-Only exposes upgrade/downgrade and cancel operations.
+Exposes upgrade/downgrade, cancel operations and helpers for hosted-page flows.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.clients.subscription_client import get_subscription_client
+from app.constants.app_constants import BACKEND_BASE_URL, FRONTEND_BASE_URL
 from app.middleware.auth_middleware import get_current_user
 from app.models.user import User
-from app.schemas.request.subscription_schemas import CancelSubscriptionRequest, UpdateSubscriptionRequest
 from app.schemas.response.subscription_schemas import SubscriptionResponse
-from app.services.account_service import get_account_service
 from app.services.subscription_service import get_subscription_service
 from db.client import client
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
+
+
+class CreateUpgradeUrlRequest(BaseModel):
+    """Request body for creating a Chargebee upgrade/checkout URL."""
+
+    plan_id: str
+
+
+class UpgradeUrlResponse(BaseModel):
+    """Response containing the URL to redirect the customer to."""
+
+    url: str
+
+
+class SyncFromChargebeeRequest(BaseModel):
+    """Request body for syncing subscription after hosted-page redirect."""
+
+    hosted_page_id: str
 
 
 @router.get("", response_model=list[SubscriptionResponse])
@@ -48,141 +71,132 @@ async def get_subscriptions(
         )
 
 
-@router.put("/{subscription_id}", response_model=SubscriptionResponse)
-async def update_subscription(
-    subscription_id: str,
-    request: UpdateSubscriptionRequest,
+@router.post("/upgrade", response_model=UpgradeUrlResponse)
+async def create_upgrade_url(
+    body: CreateUpgradeUrlRequest,
     user: User = Depends(get_current_user),
     db: Session = Depends(client),
 ):
     """
-    Update a subscription (upgrade/downgrade plan) via Chargebee.
+    Create a Chargebee hosted-page URL to upgrade/downgrade a subscription.
 
-    Args:
-        subscription_id: ID of the subscription to update
-        request: Subscription update request with new plan_id
-        user: Current authenticated user
-        db: Database session
-
-    Returns:
-        Updated subscription data
-
-    Raises:
-        HTTPException: 401 if not authenticated, 404 if subscription not found, 400 if update fails
+    This endpoint returns a URL that the frontend can redirect the user to.
+    After payment is completed, Chargebee should redirect back to `callback_url`
+    with the hosted_page_id, and the frontend can then call the sync endpoint.
     """
     try:
         subscription_service = get_subscription_service(db)
-        subscription = subscription_service.get_subscription(subscription_id=subscription_id)
+        subscriptions = subscription_service.get_subscriptions_by_user(user_id=user.id)
 
-        if not subscription:
+        if not subscriptions:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Subscription with ID '{subscription_id}' not found",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No subscription found for this user.",
             )
 
-        # Verify user owns the account associated with this subscription
-        account_service = get_account_service(db)
-        account = account_service.get_account(account_id=subscription.account_id, user_id=user.id)
+        # Prefer the first subscription (you already ensure single-subscription-per-account)
+        subscription = subscriptions[0]
 
-        if not account:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to update this subscription",
-            )
+        cb_client = get_subscription_client()
 
-        # Update subscription
-        updated_subscription = subscription_service.update_subscription(
-            subscription_id=subscription_id,
-            plan_id=request.plan_id,
+        # Backend callback URL that Chargebee will redirect to after checkout.
+        # This endpoint will sync the subscription and then redirect the browser to the frontend.
+        backend_callback = f"{BACKEND_BASE_URL}/api/subscriptions/callback"
+
+        # Use Chargebee Hosted Page checkout for existing subscription (Product Catalog 2.0 compatible)
+        # This creates a checkout page where the customer can update card details and change plans.
+        # After completion, Chargebee redirects back to backend_callback with hosted_page_id.
+        hosted_page_cls = cb_client._client.HostedPage  # type: ignore[attr-defined]
+
+        params = {
+            "subscription": {
+                "id": str(subscription.chargebee_subscription_id),
+            },
+            "subscription_items": [
+                {
+                    "item_price_id": body.plan_id,
+                    "quantity": 1,
+                }
+            ],
+            "redirect_url": backend_callback,
+            "cancel_url": backend_callback,
+        }
+        hosted_page = hosted_page_cls.checkout_existing_for_items(params)  # type: ignore[arg-type]
+        checkout_url = str(hosted_page.hosted_page.url)
+
+        return UpgradeUrlResponse(url=checkout_url)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create upgrade URL: {str(e)}",
         )
+
+
+@router.get("/callback")
+async def chargebee_callback(request: Request, db: Session = Depends(client)) -> Response:
+    """
+    Backend callback endpoint for Chargebee hosted checkout.
+
+    Chargebee redirects the browser here after checkout with a hosted_page_id query param.
+    This endpoint:
+      1. Retrieves the hosted page and subscription from Chargebee.
+      2. Syncs the subscription to the local database.
+      3. Redirects the user to the frontend (Profile page by default).
+    """
+    hosted_page_id = request.query_params.get("id")
+
+    if not hosted_page_id:
+        # Missing hosted_page_id, just send user to frontend with an error flag
+        redirect_url = f"{FRONTEND_BASE_URL or ''}/profile?billing_error=missing_hosted_page_id"
+        return Response(status_code=status.HTTP_307_TEMPORARY_REDIRECT, headers={"Location": redirect_url})
+
+    try:
+        cb_client = get_subscription_client()
+        hosted_page = cb_client._client.HostedPage.retrieve(hosted_page_id)  # type: ignore[attr-defined]
+
+        # Chargebee 3.x HostedPage structure can differ; try multiple ways to get subscription id
+        hp = hosted_page.hosted_page  # type: ignore[attr-defined]
+
+        cb_subscription = getattr(hp, "subscription", None)
+        subscription_id = None
+
+        if cb_subscription is not None and getattr(cb_subscription, "id", None):
+            subscription_id = str(cb_subscription.id)  # type: ignore[attr-defined]
+        else:
+            # Fallback: some PC 2.0 flows put subscription under hosted page content
+            content = getattr(hp, "content", None)
+            if content is not None:
+                # content might be an object or dict-like
+                sub_from_content = getattr(content, "subscription", None)
+                if sub_from_content is None and isinstance(content, dict):
+                    sub_from_content = content.get("subscription")
+
+                if sub_from_content is not None:
+                    if isinstance(sub_from_content, dict):
+                        subscription_id = str(sub_from_content.get("id"))
+                    elif getattr(sub_from_content, "id", None):
+                        subscription_id = str(sub_from_content.id)  # type: ignore[attr-defined]
+
+        if not subscription_id:
+            redirect_url = f"{FRONTEND_BASE_URL or ''}/profile?billing_error=sub_missing_from_hosted_page"
+            return Response(
+                status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+                headers={"Location": redirect_url},
+            )
+
+        subscription_service = get_subscription_service(db)
+        updated_subscription = subscription_service.sync_subscription_from_chargebee(subscription_id)
 
         if not updated_subscription:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Subscription with ID '{subscription_id}' not found",
-            )
+            redirect_url = f"{FRONTEND_BASE_URL or ''}/profile?billing_error=sub_not_found"
+            return Response(status_code=status.HTTP_307_TEMPORARY_REDIRECT, headers={"Location": redirect_url})
 
-        return SubscriptionResponse.from_model(updated_subscription)
-
-    except HTTPException:
-        raise
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+        # Success: redirect to frontend profile with success flag
+        redirect_url = f"{FRONTEND_BASE_URL or ''}/profile?billing_success=1"
+        return Response(status_code=status.HTTP_307_TEMPORARY_REDIRECT, headers={"Location": redirect_url})
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update subscription: {str(e)}",
-        )
-
-
-@router.post("/{subscription_id}/cancel", response_model=SubscriptionResponse)
-async def cancel_subscription(
-    subscription_id: str,
-    request: CancelSubscriptionRequest,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(client),
-):
-    """
-    Cancel a subscription via Chargebee.
-
-    Args:
-        subscription_id: ID of the subscription to cancel
-        request: Cancellation request with optional reason
-        user: Current authenticated user
-        db: Database session
-
-    Returns:
-        Cancelled subscription data
-
-    Raises:
-        HTTPException: 401 if not authenticated, 404 if subscription not found, 400 if cancellation fails
-    """
-    try:
-        subscription_service = get_subscription_service(db)
-        subscription = subscription_service.get_subscription(subscription_id=subscription_id)
-
-        if not subscription:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Subscription with ID '{subscription_id}' not found",
-            )
-
-        # Verify user owns the account associated with this subscription
-        account_service = get_account_service(db)
-        account = account_service.get_account(account_id=subscription.account_id, user_id=user.id)
-
-        if not account:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have permission to cancel this subscription",
-            )
-
-        # Cancel subscription
-        cancelled_subscription = subscription_service.cancel_subscription(
-            subscription_id=subscription_id,
-            cancel_reason=request.cancel_reason,
-        )
-
-        if not cancelled_subscription:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Subscription with ID '{subscription_id}' not found",
-            )
-
-        return SubscriptionResponse.from_model(cancelled_subscription)
-
-    except HTTPException:
-        raise
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to cancel subscription: {str(e)}",
-        )
+        logger.error(f"Failed to sync subscription from Chargebee: {str(e)}")
+        redirect_url = f"{FRONTEND_BASE_URL or ''}/profile?billing_error=sync_failed"
+        return Response(status_code=status.HTTP_307_TEMPORARY_REDIRECT, headers={"Location": redirect_url})

@@ -5,7 +5,7 @@ import { useResetPassword } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 const ResetPasswordPage = () => {
   const [searchParams] = useSearchParams();
@@ -33,10 +33,8 @@ const ResetPasswordPage = () => {
     event.preventDefault();
     if (!password || !confirmPassword || !token || isPending) return;
     if (password !== confirmPassword) {
-      toast({
-        title: 'Passwords do not match',
+      toast.error('Passwords do not match', {
         description: 'Please make sure both passwords are the same.',
-        variant: 'destructive',
       });
       return;
     }
@@ -44,8 +42,7 @@ const ResetPasswordPage = () => {
       { password, token },
       {
         onSuccess: () => {
-          toast({
-            title: 'Password Reset',
+          toast('Password Reset', {
             description: 'Your password has been successfully reset. Please sign in.',
           });
           setTimeout(() => {
@@ -53,11 +50,9 @@ const ResetPasswordPage = () => {
           }, 2000);
         },
         onError: (err) => {
-          toast({
-            title: 'Reset Failed',
+          toast.error('Reset Failed', {
             description:
               err.message || 'Failed to reset password. The link might be expired or invalid.',
-            variant: 'destructive',
           });
         },
       }

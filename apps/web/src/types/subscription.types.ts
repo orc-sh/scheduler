@@ -26,9 +26,15 @@ export interface CancelSubscriptionRequest {
   cancel_reason?: string;
 }
 
-export type PlanId = 'free-plan' | 'pro-plan';
+export type PlanId =
+  | 'free-plan-INR-Monthly'
+  | 'free-plan-INR-Yearly'
+  | 'pro-plan-INR-Monthly'
+  | 'pro-plan-INR-Yearly';
 
 export const PLAN_IDS = {
-  FREE: 'free-plan' as const,
-  PRO: 'pro-plan' as const,
+  FREE: 'free-plan-INR-Monthly' as const,
+  FREE_YEARLY: 'free-plan-INR-Yearly' as const,
+  PRO: 'pro-plan-INR-Monthly' as const,
+  PRO_YEARLY: 'pro-plan-INR-Yearly' as const,
 } as const;

@@ -55,6 +55,8 @@ type WebhookFormData = z.infer<typeof webhookSchema>;
 
 // Common cron presets
 const CRON_PRESETS = [
+  { label: 'Every 5 seconds', value: '*/5 * * * * *', description: 'Runs every 5 seconds' },
+  { label: 'Every 10 seconds', value: '*/10 * * * * *', description: 'Runs every 10 seconds' },
   { label: 'Every minute', value: '* * * * *', description: 'Runs every minute' },
   { label: 'Every 5 minutes', value: '*/5 * * * *', description: 'Runs every 5 minutes' },
   { label: 'Every hour', value: '0 * * * *', description: 'Runs at minute 0 of every hour' },

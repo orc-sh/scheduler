@@ -26,7 +26,8 @@ import { User, Crown, Check, Trash2 } from 'lucide-react';
 import { useSubscriptions, useUpdateSubscription } from '@/hooks/use-subscriptions';
 import { useDeleteAccount } from '@/hooks/use-user';
 import { PLAN_IDS, type PlanId } from '@/types';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
+import api from '@/lib/api';
 
 const ProfilePage = () => {
   const user = useAuthStore((state) => state.user);
@@ -37,7 +38,6 @@ const ProfilePage = () => {
   } = useSubscriptions();
   const updateSubscription = useUpdateSubscription();
   const deleteAccount = useDeleteAccount();
-  const { toast } = useToast();
   const [updatingSubscriptionId, setUpdatingSubscriptionId] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -52,8 +52,7 @@ const ProfilePage = () => {
 
     // Check if subscriptions are still loading
     if (isLoadingSubscriptions) {
-      toast({
-        title: 'Loading subscriptions',
+      toast('Loading subscriptions', {
         description: 'Please wait while we load your subscription information.',
       });
       return;
@@ -61,30 +60,25 @@ const ProfilePage = () => {
 
     // Check if there was an error loading subscriptions
     if (subscriptionsError) {
-      toast({
-        title: 'Error loading subscriptions',
+      toast.error('Error loading subscriptions', {
         description:
           'Unable to load your subscription information. Please try refreshing the page.',
-        variant: 'destructive',
       });
       return;
     }
 
     // Check if subscription exists
     if (!activeSubscription) {
-      toast({
-        title: 'No subscription found',
+      toast.error('No subscription found', {
         description:
           'You need to create a account first. Each account automatically gets a free subscription.',
-        variant: 'destructive',
       });
       return;
     }
 
     // Check if already on the requested plan
     if (currentPlanId === newPlanId) {
-      toast({
-        title: 'Already on this plan',
+      toast('Already on this plan', {
         description: `You are already on the ${newPlanId === PLAN_IDS.PRO ? 'Pro' : 'Free'} plan.`,
       });
       return;
@@ -96,6 +90,45 @@ const ProfilePage = () => {
       newPlanId,
     });
 
+    // If upgrading to a paid plan, use Chargebee hosted page flow
+    if (newPlanId === PLAN_IDS.PRO || newPlanId === PLAN_IDS.PRO_YEARLY) {
+      setUpdatingSubscriptionId(activeSubscription.id);
+      try {
+        const callbackUrl = `${window.location.origin}/billing/callback`;
+
+        const response = await api.post('/api/subscriptions/upgrade', {
+          plan_id: newPlanId,
+          callback_url: callbackUrl,
+        });
+
+        const url: string | undefined = response.data?.url;
+        if (!url) {
+          throw new Error('No upgrade URL returned from server.');
+        }
+
+        toast('Redirecting to payment', {
+          description: 'You will be redirected to securely update your payment details.',
+        });
+
+        window.location.href = url;
+      } catch (error: any) {
+        console.error('Failed to create upgrade URL:', error);
+        const description =
+          error?.response?.data?.detail ||
+          error?.message ||
+          'An error occurred while starting the upgrade.';
+
+        toast.error('Failed to start upgrade', {
+          description,
+        });
+      } finally {
+        setUpdatingSubscriptionId(null);
+      }
+
+      return;
+    }
+
+    // Downgrade or switch between free plans: update directly via API
     setUpdatingSubscriptionId(activeSubscription.id);
 
     try {
@@ -106,9 +139,8 @@ const ProfilePage = () => {
 
       console.log('Subscription updated successfully:', result);
 
-      toast({
-        title: 'Plan updated successfully',
-        description: `Your plan has been switched to ${newPlanId === PLAN_IDS.PRO ? 'Pro' : 'Free'}.`,
+      toast('Plan updated successfully', {
+        description: 'Your plan has been updated.',
       });
     } catch (error: any) {
       console.error('Failed to update subscription:', error);
@@ -124,10 +156,8 @@ const ProfilePage = () => {
         error?.message ||
         'An error occurred while updating your plan.';
 
-      toast({
-        title: 'Failed to update plan',
+      toast.error('Failed to update plan', {
         description: errorMessage,
-        variant: 'destructive',
       });
     } finally {
       setUpdatingSubscriptionId(null);
@@ -137,8 +167,7 @@ const ProfilePage = () => {
   const handleDeleteAccount = async () => {
     try {
       await deleteAccount.mutateAsync();
-      toast({
-        title: 'Account deleted',
+      toast('Account deleted', {
         description: 'Your account and all associated data have been permanently deleted.',
       });
     } catch (error: any) {
@@ -147,10 +176,8 @@ const ProfilePage = () => {
         error?.response?.data?.detail ||
         error?.message ||
         'An error occurred while deleting your account.';
-      toast({
-        title: 'Failed to delete account',
+      toast.error('Failed to delete account', {
         description: errorMessage,
-        variant: 'destructive',
       });
     } finally {
       setShowDeleteDialog(false);

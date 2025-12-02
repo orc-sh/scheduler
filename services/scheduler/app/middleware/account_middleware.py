@@ -21,9 +21,6 @@ from db.client import client
 
 logger = logging.getLogger(__name__)
 
-# Default account name if not specified
-DEFAULT_PROJECT_NAME = "default project"
-
 
 async def get_current_account(
     request: Request,
@@ -81,13 +78,10 @@ async def get_current_account(
         # Get account service
         account_service = get_account_service(db)
 
-        # Determine account name to use
-        name_to_use = account_name or DEFAULT_PROJECT_NAME
-
         # Get or create account for the user
         account = account_service.get_or_create_account_by_name(
             user_id=current_user.id,
-            account_name=name_to_use,
+            account_name=current_user.name,
             user=current_user,
         )
 
@@ -119,14 +113,11 @@ async def get_current_account(
 class AccountMiddleware:
     """Middleware class for account context management."""
 
-    def __init__(self, default_account_name: str = DEFAULT_PROJECT_NAME):
+    def __init__(self):
         """
         Initialize the account middleware.
-
-        Args:
-            default_account_name: Default account name to use if not specified in request
         """
-        self.default_account_name = default_account_name
+        pass
 
     async def __call__(self, request: Request) -> Optional[Account]:
         """
@@ -151,7 +142,7 @@ class AccountMiddleware:
                     return None
 
             # Get account name from query parameter or use default
-            account_name = request.query_params.get("account_name") or self.default_account_name
+            account_name = user.name
 
             # Get database session
             from db.client import client
@@ -199,7 +190,7 @@ class AccountMiddleware:
 _account_middleware_instance: Optional[AccountMiddleware] = None
 
 
-def get_account_middleware(default_account_name: str = DEFAULT_PROJECT_NAME) -> AccountMiddleware:
+def get_account_middleware() -> AccountMiddleware:
     """
     Get or create the singleton AccountMiddleware instance.
 
@@ -211,5 +202,5 @@ def get_account_middleware(default_account_name: str = DEFAULT_PROJECT_NAME) -> 
     """
     global _account_middleware_instance
     if _account_middleware_instance is None:
-        _account_middleware_instance = AccountMiddleware(default_account_name=default_account_name)
+        _account_middleware_instance = AccountMiddleware()
     return _account_middleware_instance
