@@ -39,9 +39,9 @@
       "prettier --write"
     ],
     "services/scheduler/**/*.py": [
-      "python -m black --quiet",
-      "python -m isort --quiet",
-      "python -m flake8 --max-line-length=120 --extend-ignore=E203,W503"
+      "./venv/bin/python -m black --quiet",
+      "./venv/bin/python -m isort --quiet",
+      "./venv/bin/python -m flake8 --max-line-length=120 --extend-ignore=E203,W503"
     ]
   },
   "keywords": [

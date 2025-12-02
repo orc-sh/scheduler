@@ -6,6 +6,9 @@ node_modules
 dist
 build
 
+# Cursor
+.cursor/
+
 # Python
 __pycache__
 *.pyc

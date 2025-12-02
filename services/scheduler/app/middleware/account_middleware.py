@@ -22,7 +22,7 @@ from db.client import client
 logger = logging.getLogger(__name__)
 
 # Default account name if not specified
-DEFAULT_PROJECT_NAME = "default"
+DEFAULT_PROJECT_NAME = "default project"
 
 
 async def get_current_account(

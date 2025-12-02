@@ -100,8 +100,8 @@ class SubscriptionService:
                     getattr(cb_subscription, "trial_end", None)
                 ),
                 subscription_metadata=(
-                    json.dumps(vars(cb_subscription))  # type: ignore[attr-defined]
-                    if hasattr(cb_subscription, "__dict__")
+                    json.dumps(cb_subscription.to_json())  # type: ignore[attr-defined]
+                    if hasattr(cb_subscription, "to_json")
                     else None
                 ),
             )
@@ -203,7 +203,9 @@ class SubscriptionService:
                 getattr(cb_subscription, "trial_end", None)
             )
             subscription.subscription_metadata = (  # type: ignore[attr-defined,assignment]
-                json.dumps(vars(cb_subscription)) if hasattr(cb_subscription, "__dict__") else None
+                json.dumps(cb_subscription.to_json())  # type: ignore[attr-defined]
+                if hasattr(cb_subscription, "to_json")
+                else None
             )
 
             self.db.commit()
@@ -250,7 +252,9 @@ class SubscriptionService:
             subscription.cancelled_at = datetime.utcnow()  # type: ignore[assignment]
             subscription.cancel_reason = cancel_reason  # type: ignore[assignment]
             subscription.subscription_metadata = (  # type: ignore[attr-defined,assignment]
-                json.dumps(vars(cb_subscription)) if hasattr(cb_subscription, "__dict__") else None
+                json.dumps(cb_subscription.to_json())  # type: ignore[attr-defined]
+                if hasattr(cb_subscription, "to_json")
+                else None
             )
 
             self.db.commit()
@@ -347,8 +351,8 @@ class SubscriptionService:
                         getattr(cb_subscription, "trial_end", None)
                     ),
                     subscription_metadata=(
-                        json.dumps(vars(cb_subscription))  # type: ignore[attr-defined]
-                        if hasattr(cb_subscription, "__dict__")
+                        json.dumps(cb_subscription.to_json())  # type: ignore[attr-defined]
+                        if hasattr(cb_subscription, "to_json")
                         else None
                     ),
                 )

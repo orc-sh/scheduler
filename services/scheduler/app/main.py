@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.celery import scheduler
@@ -12,6 +12,7 @@ from app.controllers import (
     url_receiver_controller,
     user_controller,
 )
+from app.middleware import get_account_middleware, get_auth_middleware
 from config.environment import get_frontend_url, init
 
 # Initialize environment variables FIRST before importing modules that need them
@@ -22,6 +23,10 @@ scheduler.autodiscover_tasks(["app.tasks"], force=True)
 
 # Create the FastAPI application
 app = FastAPI(title="Scheduler API", version="1.0.0")
+
+# Initialize middleware instances
+auth_middleware = get_auth_middleware()
+account_middleware = get_account_middleware()
 
 # Configure CORS
 app.add_middleware(
@@ -35,6 +40,29 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def auth_and_account_context_middleware(request: Request, call_next):
+    """
+    Global middleware to:
+    1. Authenticate the request and set the current user in context
+    2. Resolve and set the current account in context
+    """
+    # Allow unauthenticated access to health checks
+    if request.url.path in {"/health", "/health/"}:
+        return await call_next(request)
+
+    # Run auth middleware to populate user context / request.state.user
+    await auth_middleware(request)
+
+    # Run account middleware to populate account context / request.state.account
+    await account_middleware(request)
+
+    # Proceed with the request
+    response = await call_next(request)
+    return response
+
 
 # Include each router with a specific prefix and tags for better organization
 app.include_router(health_controller.router, prefix="", tags=["Health"])

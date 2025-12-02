@@ -30,6 +30,9 @@ class AccountService:
         Create a new account for a user.
         Automatically creates a free tier subscription for the account.
 
+        Uses a database transaction to ensure atomicity - if subscription creation
+        fails for any reason, the account creation will be rolled back automatically.
+
         Args:
             user_id: ID of the user creating the account
             name: Name of the account
@@ -37,6 +40,10 @@ class AccountService:
 
         Returns:
             Created Account instance
+
+        Raises:
+            Exception: If subscription creation fails, the entire transaction is
+                rolled back and the original exception is re-raised.
         """
         account = Account(
             id=str(uuid.uuid4()),
@@ -44,7 +51,9 @@ class AccountService:
             name=name,
         )
         self.db.add(account)
-        self.db.commit()
+        # Flush to make account visible in the transaction without committing
+        # This allows the subscription service to see the account in the same session
+        self.db.flush()
         self.db.refresh(account)
 
         # Automatically create a free tier subscription for the new account
@@ -71,20 +80,30 @@ class AccountService:
                         customer_last_name = name_parts[1] if len(name_parts) > 1 else None
 
                 # Create subscription with free plan
+                # This will commit both account and subscription in the same transaction
+                # since they share the same database session
                 subscription_service.create_subscription(
                     account_id=str(account.id),
-                    plan_id="free-plan",
+                    plan_id="free-plan-INR-Monthly",
                     customer_email=customer_email,
                     customer_first_name=customer_first_name,
                     customer_last_name=customer_last_name,
                 )
+                # Refresh account after successful commit
+                self.db.refresh(account)
                 logger.info(f"Created free tier subscription for account {account.id}")
-            except ValueError as e:
-                # Subscription already exists or account not found - log but don't fail
-                logger.warning(f"Could not create subscription for account {account.id}: {str(e)}")
             except Exception as e:
-                # Log other errors but don't fail account creation
+                # Rollback the entire transaction if subscription creation fails
+                # This will automatically rollback the account since they're in the same transaction
                 logger.error(f"Failed to create subscription for account {account.id}: {str(e)}")
+                logger.info("Rolling back transaction - account creation will be undone")
+                self.db.rollback()
+                # Re-raise the original exception to notify the caller
+                raise
+        else:
+            # If no user provided, commit the account creation
+            self.db.commit()
+            self.db.refresh(account)
 
         return account
 
@@ -186,7 +205,15 @@ class AccountService:
 
     def delete_account(self, account_id: str, user_id: str) -> bool:
         """
-        Delete a account.
+        Delete an account and automatically cancel/delete all associated subscriptions.
+
+        Uses a database transaction to ensure atomicity - if subscription deletion
+        fails for any reason, the account deletion will be rolled back automatically.
+
+        The process:
+        1. Cancel subscription in Chargebee (external API call, best effort)
+        2. Delete subscription and account in a single transaction
+        3. Commit atomically
 
         Args:
             account_id: ID of the account to delete
@@ -194,14 +221,63 @@ class AccountService:
 
         Returns:
             True if account was deleted, False if not found or not owned by user
+
+        Raises:
+            Exception: If subscription or account deletion fails, the entire transaction
+                is rolled back and the exception is re-raised.
         """
         account = self.get_account(account_id, user_id)
         if not account:
             return False
 
-        self.db.delete(account)
-        self.db.commit()
-        return True
+        try:
+            # Get subscription service to handle subscription operations
+            from app.services.subscription_service import get_subscription_service
+
+            subscription_service = get_subscription_service(self.db)
+
+            # Get subscription for this account
+            subscription = subscription_service.get_subscription_by_account(account_id)
+
+            if subscription:
+                # Cancel subscription in Chargebee first (to stop billing)
+                # This is an external API call that commits separately
+                # If it fails, we'll still proceed with deletion but log a warning
+                try:
+                    subscription_service.cancel_subscription(
+                        subscription_id=str(subscription.id), cancel_reason="Account deleted"
+                    )
+                    logger.info(f"Cancelled subscription {subscription.id} in Chargebee for account {account_id}")
+                    # Re-fetch subscription after cancellation (it may have been updated)
+                    subscription = subscription_service.get_subscription_by_account(account_id)
+                except Exception as cancel_error:
+                    # Log warning but continue with deletion - subscription may already be cancelled
+                    # or Chargebee cancellation may fail, but we still want to clean up locally
+                    logger.warning(f"Failed to cancel subscription {subscription.id} in Chargebee: {str(cancel_error)}")
+                    # Subscription still exists locally, proceed with deletion
+
+            # Start transaction for atomic deletion
+            # Delete subscription from local database (if it exists)
+            if subscription:
+                self.db.delete(subscription)
+                logger.info(f"Marked subscription {subscription.id} for deletion from database")
+
+            # Delete the account
+            self.db.delete(account)
+            logger.info(f"Marked account {account_id} for deletion")
+
+            # Commit the entire transaction atomically (both subscription and account deletion)
+            self.db.commit()
+            logger.info(f"Successfully deleted account {account_id} and its subscriptions")
+            return True
+
+        except Exception as e:
+            # Rollback the entire transaction if anything fails
+            logger.error(f"Failed to delete account {account_id} or its subscriptions: {str(e)}")
+            logger.info("Rolling back transaction - account deletion will be undone")
+            self.db.rollback()
+            # Re-raise the exception to notify the caller
+            raise
 
     def count_accounts(self, user_id: str) -> int:
         """

@@ -8,7 +8,7 @@ AuthServiceClient handles communication with the auth service.
 import logging
 from typing import Dict, Optional
 
-import chargebee
+from chargebee import Chargebee  # noqa: F401
 
 from config.environment import get_chargebee_api_key, get_chargebee_site
 
@@ -19,20 +19,19 @@ class SubscriptionClient:
     """Client for communicating with Chargebee subscription API."""
 
     _instance = None
-    _initialized = False
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the Chargebee client."""
-        if not SubscriptionClient._initialized:
-            try:
-                api_key = get_chargebee_api_key()
-                site = get_chargebee_site()
-                chargebee.configure(api_key, site)
-                SubscriptionClient._initialized = True
-                logger.info("Chargebee client initialized successfully")
-            except ValueError as e:
-                logger.warning(f"Chargebee configuration not set: {str(e)}")
-                # Don't raise - will fail when actually using Chargebee
+        try:
+            api_key = get_chargebee_api_key()
+            site = get_chargebee_site()
+            # Chargebee 3.x uses the Chargebee client class instead of module-level configure()
+            self._client = Chargebee(api_key=api_key, site=site)
+            logger.info("Chargebee client initialized successfully")
+        except ValueError as e:
+            self._client = None  # type: ignore[assignment]
+            logger.warning(f"Chargebee configuration not set: {str(e)}")
+            # Don't raise - will fail when actually using Chargebee
 
     def create_customer(
         self,
@@ -55,7 +54,10 @@ class SubscriptionClient:
             ValueError: If customer creation fails
         """
         try:
-            customer_result = chargebee.Customer.create(
+            if not getattr(self, "_client", None):
+                raise ValueError("Chargebee client is not configured")
+
+            customer_result = self._client.Customer.create(  # type: ignore[union-attr]
                 {
                     "email": email,
                     "first_name": first_name or "",
@@ -85,17 +87,20 @@ class SubscriptionClient:
             ValueError: If subscription creation fails
         """
         try:
-            # Product Catalog 2.0 requires subscription_items with item_price_id
-            subscription_result = chargebee.Subscription.create(
-                {
-                    "customer": {"id": customer_id},
-                    "subscription_items": [
-                        {
-                            "item_price_id": plan_id,
-                            "quantity": 1,
-                        }
-                    ],
-                }
+            if not getattr(self, "_client", None):
+                raise ValueError("Chargebee client is not configured")
+
+            # Chargebee 3.x Product Catalog 2.0: use create_with_items with typed params
+            params = self._client.Subscription.CreateWithItemsParams(  # type: ignore[union-attr]
+                subscription_items=[
+                    self._client.Subscription.CreateWithItemsSubscriptionItemParams(  # type: ignore[union-attr]
+                        item_price_id=plan_id,
+                        quantity=1,  # using int instead of str to match Chargebee API
+                    )
+                ]
+            )
+            subscription_result = self._client.Subscription.create_with_items(  # type: ignore[union-attr]
+                customer_id, params
             )
             cb_subscription = subscription_result.subscription  # type: ignore[attr-defined]
             if not cb_subscription:
@@ -123,9 +128,12 @@ class SubscriptionClient:
             if not plan_id:
                 raise ValueError("No update parameters provided")
 
+            if not getattr(self, "_client", None):
+                raise ValueError("Chargebee client is not configured")
+
             # Product Catalog 2.0 requires update_for_items with subscription_items
             # Replace the existing items with the new item_price_id
-            result = chargebee.Subscription.update_for_items(
+            result = self._client.Subscription.update_for_items(  # type: ignore[union-attr]
                 chargebee_subscription_id,
                 {
                     "subscription_items": [
@@ -160,11 +168,16 @@ class SubscriptionClient:
             ValueError: If cancellation fails
         """
         try:
+            if not getattr(self, "_client", None):
+                raise ValueError("Chargebee client is not configured")
+
             cancel_params = {}
             if cancel_reason:
                 cancel_params["cancel_reason"] = cancel_reason
 
-            result = chargebee.Subscription.cancel(chargebee_subscription_id, cancel_params)
+            result = self._client.Subscription.cancel(  # type: ignore[union-attr]
+                chargebee_subscription_id, cancel_params
+            )
             cb_subscription = result.subscription  # type: ignore[attr-defined]
             if not cb_subscription:
                 raise ValueError("Failed to cancel subscription in Chargebee")
@@ -187,7 +200,10 @@ class SubscriptionClient:
             ValueError: If subscription not found or retrieval fails
         """
         try:
-            result = chargebee.Subscription.retrieve(chargebee_subscription_id)
+            if not getattr(self, "_client", None):
+                raise ValueError("Chargebee client is not configured")
+
+            result = self._client.Subscription.retrieve(chargebee_subscription_id)  # type: ignore[union-attr]
             cb_subscription = result.subscription  # type: ignore[attr-defined]
             if not cb_subscription:
                 raise ValueError("Subscription not found in Chargebee")
