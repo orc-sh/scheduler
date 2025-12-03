@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import jwt
 
@@ -16,18 +16,18 @@ def generate_jwt_token(payload: dict, secret: str, algorithm: str = "HS256", exp
     Returns:
         str: Encoded JWT token
     """
-    issued_at = datetime.utcnow()
+    issued_at = datetime.now(timezone.utc)
     expires_at = issued_at + timedelta(minutes=expire_minutes)
-    payload = payload.copy()
-    payload.update({"iat": int(issued_at.timestamp()), "exp": int(expires_at.timestamp())})
-    token = jwt.encode(payload, secret, algorithm=algorithm)
+    jwt_payload = payload.copy()
+    jwt_payload.update({"iat": int(issued_at.timestamp()), "exp": int(expires_at.timestamp()), "aud": "authenticated"})
+    token = jwt.encode(jwt_payload, secret, algorithm=algorithm)
     # For PyJWT>=2.0, encode returns str, otherwise bytes
     if isinstance(token, bytes):
         token = token.decode("utf-8")
     return token
 
 
-def validate_jwt_token(token: str, secret: str, algorithms: list = ["HS256"], audience: str = "") -> dict:
+def validate_jwt_token(token: str, secret: str, algorithms: list = ["HS256"], audience: str = "authenticated") -> dict:
     """
     Validate a JWT token and return its payload.
 
@@ -45,18 +45,10 @@ def validate_jwt_token(token: str, secret: str, algorithms: list = ["HS256"], au
         jwt.InvalidTokenError: If the token is invalid or verification fails.
     """
     options = {"require": ["exp", "iat"]}
-    if audience:
-        return jwt.decode(
-            token,
-            secret,
-            algorithms=algorithms,
-            options=options,
-            audience=audience,
-        )
-    else:
-        return jwt.decode(
-            token,
-            secret,
-            algorithms=algorithms,
-            options=options,
-        )
+    return jwt.decode(
+        token,
+        secret,
+        algorithms=algorithms,
+        options=options,
+        audience=audience,
+    )
