@@ -316,7 +316,7 @@ const ProfilePage = () => {
                         ))}
                       </ul>
                     </CardContent>
-                    <CardFooter>
+                    <CardFooter className="flex flex-col gap-2">
                       <Button
                         className="w-full"
                         variant={isCurrentPlan ? 'outline' : 'default'}
