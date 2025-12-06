@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.controllers import auth_controller, oauth_controller
 from config.environment import get_frontend_url, init
@@ -9,6 +10,9 @@ init()
 
 # Create the FastAPI application
 app = FastAPI(title="Authentication Service API", version="1.0.0", port=8001)
+
+# Prometheus metrics instrumentation
+Instrumentator().instrument(app).expose(app)
 
 # Configure CORS
 app.add_middleware(

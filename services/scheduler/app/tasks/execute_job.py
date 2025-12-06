@@ -24,6 +24,9 @@ from config.environment import init
 # Initialize environment
 init()
 
+# Note: Celery metrics are now exported via the official Grafana celery-exporter service
+# No need for custom metrics tracking in the task code
+
 logger = logging.getLogger(__name__)
 
 # Default retry policy

@@ -15,6 +15,7 @@ import os
 import signal
 import sys
 
+from app.metrics_server import start_metrics_server
 from app.services.scheduler_service import create_scheduler_service
 from config.environment import init
 
@@ -54,6 +55,10 @@ def main():
         f"batch_size={batch_size}, "
         f"adaptive={adaptive_polling})"
     )
+
+    # Start metrics server
+    metrics_port = int(os.getenv("METRICS_PORT", "9091"))
+    start_metrics_server(port=metrics_port)
 
     # Create scheduler service
     scheduler = create_scheduler_service(

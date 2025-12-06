@@ -1,0 +1,59 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'scheduler'
+    environment: 'production'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - '/etc/prometheus/alerts.yml'
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Scheduler Service (FastAPI)
+  - job_name: 'scheduler'
+    static_configs:
+      - targets: ['scheduler:8000']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Auth Service (FastAPI)
+  - job_name: 'auth'
+    static_configs:
+      - targets: ['auth:8001']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Scheduler Worker (Standalone polling service)
+  - job_name: 'scheduler_worker'
+    static_configs:
+      - targets: ['scheduler_worker:9091']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Celery Exporter (Official Grafana celery-exporter)
+  - job_name: 'celery_exporter'
+    static_configs:
+      - targets: ['exporters:9808']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Node Exporter (System Metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['exporters:9100']
+    scrape_interval: 15s
+

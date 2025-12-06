@@ -23,3 +23,5 @@ pytz
 redis
 chargebee
 pyyaml
+prometheus-fastapi-instrumentator
+prometheus-client

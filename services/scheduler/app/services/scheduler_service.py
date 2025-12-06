@@ -27,6 +27,19 @@ from config.environment import init
 # Initialize environment
 init()
 
+# Import metrics (only if metrics_server is available)
+try:
+    from app.metrics_server import (
+        scheduler_jobs_enqueued_total,
+        scheduler_jobs_polled_total,
+        scheduler_lock_acquisition_failures_total,
+        scheduler_poll_duration_seconds,
+    )
+
+    METRICS_AVAILABLE = True
+except ImportError:
+    METRICS_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -132,6 +145,7 @@ class SchedulerService:
         Returns:
             True if jobs were found and processed, False otherwise
         """
+        start_time = time.time()
         now = datetime.utcnow()
         logger.debug(f"Scheduler tick at {now} (interval={self.current_interval}s)")
 
@@ -140,19 +154,36 @@ class SchedulerService:
 
         if not due_jobs:
             logger.debug("No due jobs found")
+            if METRICS_AVAILABLE:
+                scheduler_jobs_polled_total.labels(status="none").inc()
+                scheduler_poll_duration_seconds.observe(time.time() - start_time)
             return False
 
         logger.info(f"Found {len(due_jobs)} due jobs")
+        if METRICS_AVAILABLE:
+            scheduler_jobs_polled_total.labels(status="found").inc(len(due_jobs))
 
         enqueued_count = 0
+        failed_count = 0
         for job in due_jobs:
             try:
                 if self._try_claim_and_enqueue(job):
                     enqueued_count += 1
+                    if METRICS_AVAILABLE:
+                        scheduler_jobs_enqueued_total.labels(status="success").inc()
+                else:
+                    failed_count += 1
+                    if METRICS_AVAILABLE:
+                        scheduler_jobs_enqueued_total.labels(status="failed").inc()
             except Exception as e:
                 logger.error(f"Error processing job {job.id}: {e}", exc_info=True)
+                failed_count += 1
+                if METRICS_AVAILABLE:
+                    scheduler_jobs_enqueued_total.labels(status="error").inc()
 
-        logger.info(f"Enqueued {enqueued_count} jobs")
+        logger.info(f"Enqueued {enqueued_count} jobs, failed {failed_count}")
+        if METRICS_AVAILABLE:
+            scheduler_poll_duration_seconds.observe(time.time() - start_time)
         return True
 
     def _get_due_jobs(self, batch_size: int = 100) -> List[Job]:
@@ -224,6 +255,8 @@ class SchedulerService:
 
         if not lock_acquired:
             logger.debug(f"Could not acquire lock for job {job.id}")
+            if METRICS_AVAILABLE:
+                scheduler_lock_acquisition_failures_total.inc()
             return False
 
         try:

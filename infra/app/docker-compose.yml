@@ -1,0 +1,127 @@
+services:
+  # ============================================
+  # APPLICATION SERVICES
+  # ============================================
+  # Auth Service
+  auth_api:
+    build:
+      context: ../../services/auth
+      dockerfile: Dockerfile
+    container_name: scheduler_auth
+    ports:
+      - "${AUTH_PORT:-8001}:8001"
+    env_file:
+      - ../../services/auth/.env
+    environment:
+      - AUTH_SERVICE_HOST=0.0.0.0
+      - AUTH_SERVICE_PORT=8001
+    restart: unless-stopped
+    networks:
+      - scheduler_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Scheduler Service
+  scheduler_api:
+    build:
+      context: ../../services/scheduler
+      dockerfile: Dockerfile
+    container_name: scheduler_api
+    ports:
+      - "${SCHEDULER_PORT:-8000}:8000"
+    env_file:
+      - ../../services/scheduler/.env
+    environment:
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-scheduler_user}:${MYSQL_PASSWORD:-scheduler_pass}@mysql:3306/${MYSQL_DATABASE:-job_scheduler}
+      - REDIS_URL=redis://redis:6379/0
+    restart: unless-stopped
+    networks:
+      - scheduler_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Scheduler Worker
+  scheduler_worker:
+    build:
+      context: ../../services/scheduler
+      dockerfile: Dockerfile
+    container_name: scheduler_worker
+    command: celery -A app.celery.scheduler worker -E --loglevel=info --concurrency=4
+    env_file:
+      - ../../services/scheduler/.env
+    environment:
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-scheduler_user}:${MYSQL_PASSWORD:-scheduler_pass}@mysql:3306/${MYSQL_DATABASE:-job_scheduler}
+      - REDIS_URL=redis://redis:6379/0
+    restart: unless-stopped
+    networks:
+      - scheduler_network
+
+  # Scheduler Poller (Standalone polling service)
+  scheduler_poller:
+    build:
+      context: ../../services/scheduler
+      dockerfile: Dockerfile
+    container_name: scheduler_poller
+    command: python -m app.scheduler
+    ports:
+      - "${SCHEDULER_WORKER_METRICS_PORT:-9091}:9091"
+    env_file:
+      - ../../services/scheduler/.env
+    environment:
+      - DATABASE_URL=mysql+pymysql://${MYSQL_USER:-scheduler_user}:${MYSQL_PASSWORD:-scheduler_pass}@mysql:3306/${MYSQL_DATABASE:-job_scheduler}
+      - REDIS_URL=redis://redis:6379/0
+      - SCHEDULER_TICK_INTERVAL=${SCHEDULER_TICK_INTERVAL:-5}
+      - SCHEDULER_BATCH_SIZE=${SCHEDULER_BATCH_SIZE:-100}
+      - METRICS_PORT=9091
+    restart: unless-stopped
+    networks:
+      - scheduler_network
+
+  # Nginx
+  nginx:
+    image: nginx:alpine
+    container_name: scheduler_nginx
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - scheduler_api
+      - auth_api
+    restart: unless-stopped
+    networks:
+      - scheduler_network
+
+  # All Exporters (Sidecar - runs all exporters in one container using supervisord)
+  exporters:
+    build:
+      context: ./exporters
+      dockerfile: Dockerfile
+    container_name: scheduler_exporters
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
+      - "${CELERY_EXPORTER_PORT:-9808}:9808"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+    depends_on:
+      - scheduler_worker
+    restart: unless-stopped
+    networks:
+      - scheduler_network
+
+networks:
+  scheduler_network:
+    name: infra_scheduler_network
+    driver: bridge

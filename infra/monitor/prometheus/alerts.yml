@@ -1,0 +1,158 @@
+groups:
+  - name: scheduler_alerts
+    interval: 30s
+    rules:
+      # High job failure rate
+      - alert: HighJobFailureRate
+        expr: |
+          rate(scheduler_job_executions_total{status="failed"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High job failure rate detected"
+          description: "Job failure rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+      # Critical job failure rate
+      - alert: CriticalJobFailureRate
+        expr: |
+          rate(scheduler_job_executions_total{status="failed"}[5m]) > 0.3
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical job failure rate detected"
+          description: "Job failure rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+      # Scheduler worker down
+      - alert: SchedulerWorkerDown
+        expr: |
+          up{job="scheduler_worker"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Scheduler worker is down"
+          description: "Scheduler worker has been down for more than 1 minute"
+
+      # Celery worker down
+      - alert: CeleryWorkerDown
+        expr: |
+          up{job="celery_worker"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Celery worker is down"
+          description: "Celery worker has been down for more than 1 minute"
+
+      # High task queue length
+      - alert: HighTaskQueueLength
+        expr: |
+          celery_queue_length > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High task queue length"
+          description: "Task queue length is {{ $value }} tasks"
+
+      # Critical task queue length
+      - alert: CriticalTaskQueueLength
+        expr: |
+          celery_queue_length > 5000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical task queue length"
+          description: "Task queue length is {{ $value }} tasks"
+
+      # Scheduler service down
+      - alert: SchedulerServiceDown
+        expr: |
+          up{job="scheduler"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Scheduler service is down"
+          description: "Scheduler API service has been down for more than 1 minute"
+
+      # Auth service down
+      - alert: AuthServiceDown
+        expr: |
+          up{job="auth"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Auth service is down"
+          description: "Auth service has been down for more than 1 minute"
+
+      # High job execution duration
+      - alert: HighJobExecutionDuration
+        expr: |
+          histogram_quantile(0.95, rate(scheduler_job_execution_duration_seconds_bucket[5m])) > 60
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High job execution duration"
+          description: "95th percentile job execution duration is {{ $value }}s"
+
+      # Redis connection issues
+      - alert: RedisDown
+        expr: |
+          up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Redis service has been down for more than 1 minute"
+
+      # MySQL connection issues
+      - alert: MySQLDown
+        expr: |
+          up{job="mysql"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MySQL is down"
+          description: "MySQL service has been down for more than 1 minute"
+
+      # High error rate on scheduler API
+      - alert: HighSchedulerAPIErrorRate
+        expr: |
+          rate(http_requests_total{job="scheduler",status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on scheduler API"
+          description: "Error rate is {{ $value | humanizePercentage }} on scheduler API"
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: |
+          (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is above 90%"
+
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: |
+          100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is above 80%"
+

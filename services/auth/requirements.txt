@@ -3,4 +3,6 @@ uvicorn
 python-dotenv
 supabase
 pyjwt
+prometheus-fastapi-instrumentator
+prometheus-client
 
