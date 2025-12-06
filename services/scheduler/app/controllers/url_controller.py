@@ -11,6 +11,7 @@ from app.schemas.request.url_schemas import CreateUrlRequest
 from app.schemas.response.pagination_schemas import PaginatedResponse, PaginationMetadata
 from app.schemas.response.url_schemas import UrlLogResponse, UrlResponse, UrlWithLogsResponse
 from app.services.account_service import get_account_service
+from app.services.rate_limiter_service import get_rate_limiter_service
 from app.services.url_service import get_url_service
 from db.client import client
 
@@ -40,6 +41,20 @@ async def create_url(
     # Verify account exists and belongs to user
     account_service = get_account_service(db)
     account = account_service.get_or_create_account_by_name(user_id=user.id, account_name=user.name)
+
+    # Check URL creation limit
+    rate_limiter = get_rate_limiter_service()
+    can_create, current_count, limit = rate_limiter.can_create_url(db, str(account.id))
+
+    if not can_create:
+        limit_str = "unlimited" if limit is None else str(limit)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"URL creation limit reached: {current_count}/{limit_str} URLs. "
+                "Please upgrade your plan to create more URLs."
+            ),
+        )
 
     # Create URL
     url_service = get_url_service(db)

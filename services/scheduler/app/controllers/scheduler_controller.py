@@ -16,6 +16,7 @@ from app.schemas.response.webhook_schemas import CronWebhookResponse, WebhookRes
 from app.services.account_service import get_account_service
 from app.services.job_execution_service import get_job_execution_service
 from app.services.job_service import get_job_service
+from app.services.rate_limiter_service import get_rate_limiter_service
 from app.services.webhook_service import get_webhook_service
 from db.client import client
 from lib.exception.not_found import NotFoundException
@@ -54,7 +55,20 @@ async def create_webhook(
         account_service = get_account_service(db)
         account = account_service.get_or_create_account_by_name(user_id=user.id, account_name=user.name, user=user)
 
-        # Step 2: Create job for the account
+        # Step 2: Check job creation limit before creating job
+        rate_limiter = get_rate_limiter_service()
+        can_create, current_count, limit = rate_limiter.can_create_job(db, str(account.id))
+
+        if not can_create:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Job/schedule creation limit reached: {current_count}/{limit} jobs. "
+                    "Please upgrade your plan to create more schedules."
+                ),
+            )
+
+        # Step 3: Create job for the account
         job_service = get_job_service(db)
         job = job_service.create_job(
             account_id=str(account.id),
@@ -66,7 +80,7 @@ async def create_webhook(
             user=user,  # Pass user for tier validation
         )
 
-        # Step 3: Create webhook for the job
+        # Step 4: Create webhook for the job
         webhook_service = get_webhook_service(db)
         webhook = webhook_service.create_webhook(
             job_id=str(job.id),

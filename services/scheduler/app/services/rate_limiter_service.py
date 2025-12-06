@@ -27,6 +27,19 @@ RATE_LIMITS = {
     "pro": 10,
 }
 
+# Creation limits per plan
+# Free plan: unlimited URLs, 10 jobs/schedules
+# Pro plan: 100 URLs, 100 jobs/schedules
+URL_CREATION_LIMITS = {
+    "free": 10,  # None means unlimited
+    "pro": 10,
+}
+
+JOB_CREATION_LIMITS = {
+    "free": 10,
+    "pro": 100,
+}
+
 # Redis key expiration time (24 hours in seconds)
 REDIS_TTL = 24 * 60 * 60  # 86400 seconds
 
@@ -329,6 +342,134 @@ class RateLimiterService:
         except Exception as e:
             logger.error(f"Error getting current count for {key_type} {identifier}: {e}")
             return 0
+
+    def _count_urls_for_account(self, db: Session, account_id: str) -> int:
+        """
+        Count the number of URLs for an account.
+
+        Args:
+            db: Database session
+            account_id: Account ID
+
+        Returns:
+            Number of URLs for the account
+        """
+        try:
+            from app.models.urls import Url
+
+            count = db.query(Url).filter(Url.account_id == account_id).count()
+            return count
+        except Exception as e:
+            logger.error(f"Error counting URLs for account {account_id}: {e}")
+            return 0
+
+    def _count_jobs_for_account(self, db: Session, account_id: str) -> int:
+        """
+        Count the number of jobs/schedules for an account.
+
+        Args:
+            db: Database session
+            account_id: Account ID
+
+        Returns:
+            Number of jobs for the account
+        """
+        try:
+            count = db.query(Job).filter(Job.account_id == account_id).count()
+            return count
+        except Exception as e:
+            logger.error(f"Error counting jobs for account {account_id}: {e}")
+            return 0
+
+    def can_create_url(self, db: Session, account_id: str) -> tuple[bool, int, Optional[int]]:
+        """
+        Check if account can create more URLs based on plan limits.
+
+        Args:
+            db: Database session
+            account_id: Account ID
+
+        Returns:
+            Tuple of (can_create, current_count, limit)
+            - can_create: True if can create more URLs, False if limit reached
+            - current_count: Current number of URLs for the account
+            - limit: Maximum allowed URLs (None for unlimited)
+        """
+        try:
+            # Get plan for account
+            plan_id = self.get_plan_for_account(db, account_id)
+            plan_type = self._get_plan_type(plan_id or "free")
+            limit = URL_CREATION_LIMITS.get(plan_type)
+
+            # Count existing URLs
+            current_count = self._count_urls_for_account(db, account_id)
+
+            # If limit is None, it means unlimited (for free plan)
+            if limit is None:
+                logger.info(
+                    f"URL creation check for account {account_id}: {current_count}/unlimited "
+                    f"(plan_id: {plan_id}, plan_type: {plan_type})"
+                )
+                return True, current_count, None
+
+            # Check if limit exceeded
+            if current_count >= limit:
+                logger.warning(
+                    f"URL creation limit exceeded for account {account_id}: {current_count}/{limit} "
+                    f"(plan_id: {plan_id}, plan_type: {plan_type})"
+                )
+                return False, current_count, limit
+
+            logger.info(
+                f"URL creation check for account {account_id}: {current_count}/{limit} "
+                f"(plan_id: {plan_id}, plan_type: {plan_type})"
+            )
+            return True, current_count, limit
+        except Exception as e:
+            logger.error(f"Error checking URL creation limit for account {account_id}: {e}")
+            # Fail open - allow creation if check fails
+            return True, 0, None
+
+    def can_create_job(self, db: Session, account_id: str) -> tuple[bool, int, int]:
+        """
+        Check if account can create more jobs/schedules based on plan limits.
+
+        Args:
+            db: Database session
+            account_id: Account ID
+
+        Returns:
+            Tuple of (can_create, current_count, limit)
+            - can_create: True if can create more jobs, False if limit reached
+            - current_count: Current number of jobs for the account
+            - limit: Maximum allowed jobs
+        """
+        try:
+            # Get plan for account
+            plan_id = self.get_plan_for_account(db, account_id)
+            plan_type = self._get_plan_type(plan_id or "free")
+            limit = JOB_CREATION_LIMITS.get(plan_type, JOB_CREATION_LIMITS["free"])
+
+            # Count existing jobs
+            current_count = self._count_jobs_for_account(db, account_id)
+
+            # Check if limit exceeded
+            if current_count >= limit:
+                logger.warning(
+                    f"Job creation limit exceeded for account {account_id}: {current_count}/{limit} "
+                    f"(plan_id: {plan_id}, plan_type: {plan_type})"
+                )
+                return False, current_count, limit
+
+            logger.info(
+                f"Job creation check for account {account_id}: {current_count}/{limit} "
+                f"(plan_id: {plan_id}, plan_type: {plan_type})"
+            )
+            return True, current_count, limit
+        except Exception as e:
+            logger.error(f"Error checking job creation limit for account {account_id}: {e}")
+            # Fail open - allow creation if check fails
+            return True, 0, JOB_CREATION_LIMITS["pro"]
 
 
 # Singleton instance

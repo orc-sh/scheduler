@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUrls, useCreateUrl } from '@/hooks/use-urls';
+import { useSubscriptions } from '@/hooks/use-subscriptions';
+import { getUrlLimit } from '@/constants/limits';
 import { FadeIn } from '@/components/motion/fade-in';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 import { Plus, ExternalLink, Copy, Check, Globe, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
@@ -17,7 +20,23 @@ const UrlsPage = () => {
 
   // Fetch URLs
   const { data: urlsData, isLoading, isError } = useUrls(currentPage, pageSize);
+  const { data: subscriptions } = useSubscriptions();
   const createUrl = useCreateUrl();
+
+  // Calculate URL limits based on subscription plan
+  const urlLimitInfo = useMemo(() => {
+    const subscription = subscriptions?.[0]; // Get first subscription (user typically has one)
+    const planId = subscription?.plan_id || null;
+    const limit = getUrlLimit(planId);
+
+    // Get total URL count from pagination
+    const currentCount = urlsData?.pagination?.total_entries || 0;
+
+    return {
+      currentCount,
+      limit,
+    };
+  }, [subscriptions, urlsData?.pagination?.total_entries]);
 
   const handleCreateUrl = async () => {
     try {
@@ -46,11 +65,21 @@ const UrlsPage = () => {
         <FadeIn>
           {/* Header */}
           <div className="mb-8 flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Webhook Endpoints</h1>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Point to these endpoints to receive and log incoming requests.
-              </p>
+            <div className="flex items-center gap-3">
+              <div>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-3xl font-bold tracking-tight">Webhook Endpoints</h1>
+                  {urlLimitInfo && (
+                    <Badge variant="secondary" className="text-xs font-normal">
+                      {urlLimitInfo.currentCount} of{' '}
+                      {urlLimitInfo.limit === null ? '∞' : urlLimitInfo.limit}
+                    </Badge>
+                  )}
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Point to these endpoints to receive and log incoming requests.
+                </p>
+              </div>
             </div>
             <Button onClick={handleCreateUrl} disabled={createUrl.isPending}>
               Create

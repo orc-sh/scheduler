@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useWebhooks, useUpdateWebhook } from '@/hooks/use-webhooks';
+import { useSubscriptions } from '@/hooks/use-subscriptions';
+import { getJobLimit } from '@/constants/limits';
 import { FadeIn } from '@/components/motion/fade-in';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -35,6 +37,26 @@ const SchedulesPage = () => {
 
   // Fetch webhooks with pagination
   const { data: webhooks = [], isLoading, isError } = useWebhooks(ITEMS_PER_PAGE, offset);
+  // Fetch all webhooks to get accurate job count (with high limit)
+  const { data: allWebhooks = [] } = useWebhooks(1000, 0);
+  const { data: subscriptions } = useSubscriptions();
+
+  // Calculate job limits based on subscription plan
+  const jobLimitInfo = useMemo(() => {
+    const subscription = subscriptions?.[0]; // Get first subscription (user typically has one)
+    const planId = subscription?.plan_id || null;
+    const limit = getJobLimit(planId);
+
+    // Count unique jobs from all webhooks (each webhook has a job)
+    // Using allWebhooks to get accurate count across all pages
+    const uniqueJobIds = new Set(allWebhooks.map((w) => w.job_id).filter(Boolean));
+    const currentCount = uniqueJobIds.size;
+
+    return {
+      currentCount,
+      limit,
+    };
+  }, [subscriptions, allWebhooks]);
 
   // Handle toggle enable/disable
   const handleToggleEnabled = async (
@@ -65,11 +87,20 @@ const SchedulesPage = () => {
           <FadeIn>
             {/* Header */}
             <div className="mb-8 flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold tracking-tight">Webhook Schedules</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Use cron expressions to trigger your webhooks on schedule.
-                </p>
+              <div className="flex items-center gap-3">
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h1 className="text-3xl font-bold tracking-tight">Webhook Schedules</h1>
+                    {jobLimitInfo && (
+                      <Badge variant="secondary" className="text-xs font-normal">
+                        {jobLimitInfo.currentCount} of {jobLimitInfo.limit}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Use cron expressions to trigger your webhooks on schedule.
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-3">
                 <Button
