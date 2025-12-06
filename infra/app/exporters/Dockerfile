@@ -2,11 +2,11 @@
 FROM prom/node-exporter:latest AS node-exporter
 FROM grafana/celery-exporter:latest AS celery-exporter
 
-# Base image with supervisord
+# Use standard ubuntu base image with supervisord
 FROM ubuntu:22.04
 
-# Install supervisord and Python 3.11
-RUN apt-get update && apt-get install -y \
+# Install supervisord and Python 3.11 on slim image
+RUN apt-get update && apt-get install -y --no-install-recommends \
     supervisor \
     curl \
     python3.11 \
@@ -23,8 +23,6 @@ RUN mkdir -p /usr/local/lib/python3.11/dist-packages
 COPY --from=node-exporter /bin/node_exporter /usr/local/bin/node_exporter
 
 # Copy celery-exporter Python package and all dependencies from official image
-# celery-exporter is a Python module, not a binary, so we copy the entire site-packages
-# Ubuntu uses dist-packages instead of site-packages, so we copy there
 COPY --from=celery-exporter /usr/local/lib/python3.11/site-packages/ /usr/local/lib/python3.11/dist-packages/
 
 # Copy supervisord configuration
